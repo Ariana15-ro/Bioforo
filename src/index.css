@@ -1,0 +1,117 @@
+/* TailwindCSS layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * Base layer: dark forest theme + mobile-first typography
+ * ------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  body {
+    /* Dark forest background with a subtle radial "canopy" glow */
+    @apply bg-forest-950 font-sans text-slate-100 antialiased;
+    background-image:
+      radial-gradient(120% 80% at 50% -10%, rgba(34, 197, 94, 0.12), transparent 60%),
+      radial-gradient(80% 60% at 100% 0%, rgba(21, 128, 61, 0.10), transparent 55%);
+    background-attachment: fixed;
+  }
+}
+
+/* Thin, themed scrollbars for the mobile frame */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* ---- Polish: smooth animations & motion (mobile-first) ---- */
+
+  /* Card entrance: fade + slight rise (used by feed/map cards). */
+  @keyframes bio-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-fade-up {
+    animation: bio-fade-up 0.35s ease-out both;
+  }
+
+  /* Shimmer overlay for skeletons (replaces flat pulse). */
+  @keyframes bio-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  .skeleton-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(34, 197, 94, 0.10) 37%,
+      rgba(255, 255, 255, 0.04) 63%
+    );
+    background-size: 200% 100%;
+    animation: bio-shimmer 1.4s ease-in-out infinite;
+  }
+
+  /* Like pop: subtle scale bump on toggle. */
+  @keyframes bio-pop {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.25);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  .animate-pop {
+    animation: bio-pop 0.3s ease-out;
+  }
+
+  /* Modal/dropdown entrance. */
+  @keyframes bio-scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  .animate-scale-in {
+    animation: bio-scale-in 0.22s ease-out both;
+  }
+
+  /* Respect reduced-motion preferences. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-up,
+    .skeleton-shimmer,
+    .animate-pop,
+    .animate-scale-in {
+      animation: none !important;
+    }
+  }
+}

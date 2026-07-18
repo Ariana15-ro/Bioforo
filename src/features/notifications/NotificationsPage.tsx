@@ -1,0 +1,104 @@
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
+import { Heart, MapPin, MessageCircle, UserPlus } from "lucide-react";
+import { useEffect, useState } from "react";
+
+import { Avatar } from "@/components/common/Avatar";
+import { Skeleton } from "@/components/common/Skeleton";
+import type { NotificationType } from "@/store/notificationsStore";
+import { useNotificationsStore } from "@/store/notificationsStore";
+
+/** Icon + color per notification type. */
+const META: Record<NotificationType, { icon: typeof Heart; color: string }> = {
+  like: { icon: Heart, color: "text-bio-400" },
+  comment: { icon: MessageCircle, color: "text-sky-300" },
+  nearby: { icon: MapPin, color: "text-amber-300" },
+  follow: { icon: UserPlus, color: "text-bio-300" },
+};
+
+/**
+ * Notifications screen. Lists recent activity with avatars, messages and
+ * relative times; marks everything read on mount (clears the unread badge).
+ * Route: /app/notifications
+ */
+export function NotificationsPage() {
+  const notifications = useNotificationsStore((s) => s.notifications);
+  const unread = useNotificationsStore((s) => s.unreadCount);
+  const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 400);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Clear unread state when the user views the screen.
+  useEffect(() => {
+    if (unread > 0) markAllRead();
+  }, [unread, markAllRead]);
+
+  return (
+    <div className="w-full max-w-[428px] mx-auto space-y-4 md:mx-0 md:max-w-none">
+      <header className="flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-50">Notificaciones</h1>
+        {unread > 0 && (
+          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+            {unread}
+          </span>
+        )}
+      </header>
+
+      {loading ? (
+        <ul className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-3 rounded-2xl border border-white/5 bg-forest-900/60 p-3"
+            >
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-2 py-1">
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-1/3" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : notifications.length > 0 ? (
+        <ul className="space-y-2">
+          {notifications.map((n) => {
+            const { icon: Icon, color } = META[n.type];
+            return (
+              <li
+                key={n.id}
+                className={`flex items-start gap-3 rounded-2xl border border-white/5 bg-forest-900/60 p-3 ${
+                  n.read ? "" : "ring-1 ring-bio-500/40"
+                }`}
+              >
+                <Avatar name={n.userName} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-slate-200">
+                    <span className="font-semibold text-slate-50">
+                      {n.userName}
+                    </span>{" "}
+                    {n.text}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {formatDistanceToNow(new Date(n.createdAt), {
+                      addSuffix: true,
+                      locale: es,
+                    })}
+                  </p>
+                </div>
+                <Icon size={18} className={`mt-1 shrink-0 ${color}`} />
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="py-16 text-center text-sm text-slate-400">
+          No tienes notificaciones nuevas.
+        </p>
+      )}
+    </div>
+  );
+}
