@@ -1,4 +1,4 @@
-import * as L from "leaflet";
+﻿import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Crosshair } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +8,6 @@ import { useSightingsStore } from "@/store/sightingsStore";
 import { usePostModal } from "@/components/modals/PostDetailModal";
 import type { Sighting } from "@/types";
 
-/** Green teardrop pin as an HTML icon (no external image assets needed). */
 const PIN_ICON = L.divIcon({
   className: "bio-pin",
   html: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 24 24" fill="#22c55e" stroke="#0e1710" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#0e1710" stroke="none"/></svg>`,
@@ -17,7 +16,6 @@ const PIN_ICON = L.divIcon({
   popupAnchor: [0, -36],
 });
 
-/** Pans the map to a coordinate when a ref requests it. */
 function LocationController({
   target,
 }: {
@@ -30,7 +28,6 @@ function LocationController({
   return null;
 }
 
-/** Simple cluster: groups sightings into ~0.5° cells to avoid pin overload. */
 function useClusters(sightings: Sighting[]) {
   return useMemo(() => {
     const cells = new Map<string, Sighting[]>();
@@ -45,11 +42,6 @@ function useClusters(sightings: Sighting[]) {
   }, [sightings]);
 }
 
-/**
- * Functional biodiversity map. Renders a pin per sighting (with light
- * clustering), centers on the user's location, and opens the global
- * PostDetailModal when a pin is clicked.
- */
 export function BiodiversityMap({
   sightings: propSightings,
   className,
@@ -62,12 +54,15 @@ export function BiodiversityMap({
   const { openPost } = usePostModal();
   const mapRef = useRef<L.Map | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const initializedRef = useRef(false);
 
   const sightings = propSightings ?? storeSightings;
 
-  // Lazy-load data once if neither the prop nor the store has data.
   useEffect(() => {
-    if (propSightings === undefined && sightings.length === 0) loadMore();
+    if (propSightings === undefined && !initializedRef.current && sightings.length === 0) {
+      initializedRef.current = true;
+      loadMore();
+    }
   }, [propSightings, sightings.length, loadMore]);
 
   const clusters = useClusters(sightings);

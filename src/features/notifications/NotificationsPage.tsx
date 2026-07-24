@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from "date-fns";
+﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Heart, MapPin, MessageCircle, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/common/Skeleton";
 import type { NotificationType } from "@/store/notificationsStore";
 import { useNotificationsStore } from "@/store/notificationsStore";
 
-/** Icon + color per notification type. */
 const META: Record<NotificationType, { icon: typeof Heart; color: string }> = {
   like: { icon: Heart, color: "text-bio-400" },
   comment: { icon: MessageCircle, color: "text-sky-300" },
@@ -16,11 +15,6 @@ const META: Record<NotificationType, { icon: typeof Heart; color: string }> = {
   follow: { icon: UserPlus, color: "text-bio-300" },
 };
 
-/**
- * Notifications screen. Lists recent activity with avatars, messages and
- * relative times; marks everything read on mount (clears the unread badge).
- * Route: /app/notifications
- */
 export function NotificationsPage() {
   const notifications = useNotificationsStore((s) => s.notifications);
   const unread = useNotificationsStore((s) => s.unreadCount);
@@ -32,24 +26,23 @@ export function NotificationsPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Clear unread state when the user views the screen.
   useEffect(() => {
     if (unread > 0) markAllRead();
   }, [unread, markAllRead]);
 
   return (
-    <div className="w-full max-w-[428px] mx-auto space-y-4 md:mx-0 md:max-w-none">
-      <header className="flex items-center gap-2">
+    <div className="w-full max-w-[428px] mx-auto space-y-4 md:mx-0 md:max-w-none" aria-live="polite">
+      <header className="animate-fade-up flex items-center gap-2">
         <h1 className="text-2xl font-bold text-slate-50">Notificaciones</h1>
         {unread > 0 && (
-          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white animate-pop">
             {unread}
           </span>
         )}
       </header>
 
       {loading ? (
-        <ul className="space-y-2">
+        <ul className="space-y-2" aria-busy="true">
           {Array.from({ length: 5 }).map((_, i) => (
             <li
               key={i}
@@ -65,16 +58,17 @@ export function NotificationsPage() {
         </ul>
       ) : notifications.length > 0 ? (
         <ul className="space-y-2">
-          {notifications.map((n) => {
+          {notifications.map((n, idx) => {
             const { icon: Icon, color } = META[n.type];
             return (
               <li
                 key={n.id}
-                className={`flex items-start gap-3 rounded-2xl border border-white/5 bg-forest-900/60 p-3 ${
+                style={{ animationDelay: `${Math.min(idx, 20) * 40}ms` }}
+                className={`animate-fade-up flex items-start gap-3 rounded-2xl border border-white/5 bg-forest-900/60 p-3 transition hover:border-white/15 ${
                   n.read ? "" : "ring-1 ring-bio-500/40"
                 }`}
               >
-                <Avatar name={n.userName} size={40} />
+                <Avatar name={n.userName} size={40} className="ring-2 ring-forest-900" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-slate-200">
                     <span className="font-semibold text-slate-50">
@@ -95,9 +89,11 @@ export function NotificationsPage() {
           })}
         </ul>
       ) : (
-        <p className="py-16 text-center text-sm text-slate-400">
-          No tienes notificaciones nuevas.
-        </p>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Heart size={48} className="mb-3 text-bio-500" aria-hidden="true" />
+          <p className="text-sm text-slate-300">No tienes notificaciones nuevas</p>
+          <p className="mt-1 text-xs text-slate-400">Cuando alguien interactúe con tus avistamientos aparecerán aquí.</p>
+        </div>
       )}
     </div>
   );

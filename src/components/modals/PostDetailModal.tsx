@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from "date-fns";
+﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Heart, MapPin, MessageCircle, Send, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { Avatar } from "@/components/common/Avatar";
 import { Modal } from "@/components/common/Modal";
+import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import {
@@ -14,12 +15,13 @@ import {
   fetchComments,
   fetchUserLikes,
   toggleLike,
+  fetchSightingById,
+  fetchProfile,
 } from "@/lib/supabaseQueries";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
 import type { Comment } from "@/types";
 
-/** A single comment row. Memoized to avoid re-renders on like/input changes. */
 const CommentItem = memo(function CommentItem({ comment }: { comment: Comment }) {
   return (
     <li className="flex items-start gap-2">
@@ -40,7 +42,6 @@ const CommentItem = memo(function CommentItem({ comment }: { comment: Comment })
   );
 });
 
-/** Comment composer. Reuses addComment with optimistic insert. */
 const CommentInput = memo(function CommentInput({
   onSend,
 }: {
@@ -77,7 +78,6 @@ const CommentInput = memo(function CommentInput({
   );
 });
 
-/** Like button with optimistic toggle. */
 const LikeButton = memo(function LikeButton({
   liked,
   count,
@@ -119,13 +119,14 @@ function PostDetailModalBase() {
   const [liked, setLiked] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [authorAvatarUrl, setAuthorAvatarUrl] = useState<string | undefined>(undefined);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // Load comments + like state whenever the selected post changes.
   useEffect(() => {
     if (!sighting) {
       setComments([]);
       setConfirmingDelete(false);
+      setAuthorAvatarUrl(undefined);
       return;
     }
     let active = true;
@@ -142,12 +143,70 @@ function PostDetailModalBase() {
     } else {
       setLiked(false);
     }
+
+    if (sighting.author.id && sighting.author.id !== "anon") {
+      fetchProfile(sighting.author.id)
+        .then((p) => active && setAuthorAvatarUrl(p?.avatarUrl))
+        .catch(() => {});
+    }
+
     return () => {
       active = false;
     };
   }, [sighting, userId]);
 
-  // Focus trap: keep Tab focus within the panel while open.
+  useEffect(() => {
+    if (!sighting) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`post-detail-${sighting.id}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "likes", filter: `sighting_id=eq.${sighting.id}` },
+          async () => {
+            const fresh = await fetchSightingById(sighting.id);
+            if (fresh) useSightingsStore.getState().updateSighting(fresh);
+            if (userId) {
+              const { data: existing } = await supabase
+                .from("likes")
+                .select("sighting_id")
+                .eq("sighting_id", sighting.id)
+                .eq("user_id", userId)
+                .maybeSingle();
+              setLiked(Boolean(existing));
+            }
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "comments", filter: `sighting_id=eq.${sighting.id}` },
+          async () => {
+            const fresh = await fetchSightingById(sighting.id);
+            if (fresh) useSightingsStore.getState().updateSighting(fresh);
+            fetchComments(sighting.id).then(setComments).catch(() => {});
+          },
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            console.info(`[realtime] post-detail ready for ${sighting.id}`);
+          } else if (status === "CHANNEL_ERROR") {
+            console.warn(`[realtime] post-detail blocked for ${sighting.id}`);
+          } else if (status === "TIMED_OUT") {
+            console.warn(`[realtime] post-detail timeout for ${sighting.id}`);
+          }
+        });
+    } catch (err) {
+      console.warn(`[realtime] post-detail subscription failed for ${sighting.id}`, err);
+    }
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [sighting, userId]);
+
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
@@ -168,7 +227,6 @@ function PostDetailModalBase() {
       }
     };
     window.addEventListener("keydown", onKey);
-    // Move focus into the dialog on open.
     const t = setTimeout(
       () => panel?.querySelector<HTMLButtonElement>("button[aria-label='Cerrar']")?.focus(),
       0,
@@ -184,13 +242,19 @@ function PostDetailModalBase() {
       toast.error("Inicia sesión para dar me gusta.");
       return;
     }
-    const isLiked = !liked;
-    setLiked(isLiked); // optimistic
+    const prevLiked = liked;
+    setLiked(!prevLiked);
     try {
-      const nowLiked = await toggleLike(sighting.id, userId);
-      if (nowLiked !== isLiked) setLiked(nowLiked);
+      const result = await toggleLike(sighting.id, userId);
+      if (result.liked !== prevLiked) {
+        setLiked(result.liked);
+      }
+      const fresh = await fetchSightingById(sighting.id);
+      if (fresh) {
+        useSightingsStore.getState().updateSighting(fresh);
+      }
     } catch {
-      setLiked(isLiked); // rollback
+      setLiked(prevLiked);
       toast.error("No se pudo actualizar el me gusta.");
     }
   }, [sighting, userId, liked]);
@@ -211,11 +275,15 @@ function PostDetailModalBase() {
       };
       setComments((prev) => [...prev, optimistic]);
       addComment(sighting.id, userId, text)
-        .then((created) =>
+        .then(async (created) => {
           setComments((prev) =>
             prev.map((c) => (c.id === optimistic.id ? created : c)),
-          ),
-        )
+          );
+          const fresh = await fetchSightingById(sighting.id);
+          if (fresh) {
+            useSightingsStore.getState().updateSighting(fresh);
+          }
+        })
         .catch(() => {
           setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
           toast.error("No se pudo enviar el comentario.");
@@ -231,7 +299,7 @@ function PostDetailModalBase() {
     setDeleting(true);
     try {
       await deleteSighting(sighting.id);
-      removeSighting(sighting.id); // single source of truth
+      removeSighting(sighting.id);
       closePost();
       toast.success("Publicación eliminada.");
     } catch (err) {
@@ -256,10 +324,7 @@ function PostDetailModalBase() {
         <div className="space-y-3 p-5">
           <div>
             <div className="flex items-start justify-between gap-3">
-              <h2
-                id="post-detail-title"
-                className="text-xl font-bold text-slate-50"
-              >
+              <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
                 {sighting.commonName}
               </h2>
               {isOwner && (
@@ -290,7 +355,7 @@ function PostDetailModalBase() {
 
           <div className="flex items-center justify-between border-t border-white/5 pt-3">
             <div className="flex items-center gap-2">
-              <Avatar name={sighting.author.displayName} size={32} />
+              <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
               <div className="text-xs">
                 <p className="font-medium text-slate-100">
                   {sighting.author.displayName}
@@ -303,14 +368,9 @@ function PostDetailModalBase() {
                 </p>
               </div>
             </div>
-            <LikeButton
-              liked={liked}
-              count={sighting.likes}
-              onToggle={handleToggleLike}
-            />
+            <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
           </div>
 
-          {/* Comments */}
           <div className="border-t border-white/5 pt-3">
             <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
               <MessageCircle size={16} /> Comentarios
@@ -333,7 +393,6 @@ function PostDetailModalBase() {
           </div>
         </div>
 
-        {/* Delete confirmation dialog (reuses the accessible Modal). */}
         <Modal open={confirmingDelete} onClose={() => setConfirmingDelete(false)}>
           <div
             role="alertdialog"
@@ -372,10 +431,8 @@ function PostDetailModalBase() {
   );
 }
 
-/** Global post detail modal. Mount once (e.g. in AppLayout). */
 export const PostDetailModal = memo(PostDetailModalBase);
 
-/** Convenience hook to open/close the post detail modal. */
 export function usePostModal() {
   const openPost = useSightingsStore((s) => s.openPost);
   const closePost = useSightingsStore((s) => s.closePost);

@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+﻿import { NavLink } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import { TABS } from "./tabs";
 import { useNotificationsStore } from "@/store/notificationsStore";
@@ -12,7 +12,7 @@ export function BottomNav() {
   const unread = useNotificationsStore((s) => s.unreadCount);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-mobile items-center justify-around border-t border-black/5 bg-white/95 px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_16px_rgba(0,0,0,0.12)] backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md items-center justify-around border-t border-black/5 bg-white/95 px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.15)] backdrop-blur md:hidden">
       {TABS.map(({ to, label, icon: Icon, end, center }) => {
         if (center) {
           return (

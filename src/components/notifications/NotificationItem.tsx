@@ -1,10 +1,10 @@
-import { formatDistanceToNow } from "date-fns";
+﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Heart, MapPin, MessageCircle, UserPlus } from "lucide-react";
 import { memo } from "react";
 
 import { Avatar } from "@/components/common/Avatar";
-import type { AppNotification, NotificationType } from "@/store/notificationsStore";
+import type { AppNotification, NotificationType } from "@/lib/supabaseQueries";
 
 /** Icon + color per notification type. */
 const META: Record<NotificationType, { icon: typeof Heart; color: string }> = {
@@ -46,6 +46,11 @@ export const NotificationItem = memo(function NotificationItem({
             </span>{" "}
             {notification.text}
           </p>
+          {notification.sightingName && (
+            <p className="mt-0.5 text-xs text-bio-300">
+              {notification.sightingName}
+            </p>
+          )}
           <p className="mt-0.5 text-xs text-slate-400">
             {formatDistanceToNow(new Date(notification.createdAt), {
               addSuffix: true,

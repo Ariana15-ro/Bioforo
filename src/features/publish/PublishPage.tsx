@@ -1,4 +1,4 @@
-import { zodResolver } from "@hookform/resolvers/zod";
+﻿import { zodResolver } from "@hookform/resolvers/zod";
 import { Camera, Crosshair, Image as ImageIcon, MapPin } from "lucide-react";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -15,7 +15,6 @@ import { supabase } from "@/lib/supabase";
 import { createSighting } from "@/lib/supabaseQueries";
 import type { Category, Sighting } from "@/types";
 
-/** Categories offered as selectable buttons. */
 const CATEGORIES: Category[] = [
   "Flora",
   "Fauna",
@@ -24,7 +23,6 @@ const CATEGORIES: Category[] = [
   "Ecosistemas",
 ];
 
-/** Validation schema for the publish form. */
 const publishSchema = z.object({
   imageUrl: z.string().min(1, "Agrega una foto de la especie"),
   commonName: z.string().min(2, "Ingresa el nombre de la especie"),
@@ -36,20 +34,9 @@ const publishSchema = z.object({
 
 type PublishValues = z.infer<typeof publishSchema>;
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-/**
- * Validates and uploads an image to the Supabase Storage "sightings" bucket
- * (public), returning its persistent public URL. Throws on auth/size/type
- * errors so the caller can surface them instead of persisting a local blob.
- */
 async function uploadImage(file: File): Promise<string> {
-  console.log("[uploadImage] Iniciando subida:", {
-    name: file.name,
-    type: file.type,
-    size: file.size,
-  });
-
   if (!file.type.startsWith("image/")) {
     throw new Error("El archivo seleccionado no es una imagen.");
   }
@@ -57,23 +44,19 @@ async function uploadImage(file: File): Promise<string> {
     throw new Error("La imagen supera el límite de 8 MB.");
   }
 
-  // Ensure the user is authenticated before uploading (avoids 400 from Storage).
   const {
     data: { session },
     error: sessionError,
   } = await supabase.auth.getSession();
-  console.log("[uploadImage] Sesión:", { hasSession: Boolean(session), sessionError });
   if (sessionError || !session) {
     throw new Error("Debes iniciar sesión para subir imágenes.");
   }
 
-  // Path: public/<uuid>.<ext> — the bucket is already public.
   const ext = file.name.includes(".")
     ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5)
     : "jpg";
   const path = `public/${crypto.randomUUID()}.${ext || "jpg"}`;
 
-  console.log("[uploadImage] Subiendo a:", path);
   const { data, error } = await supabase.storage
     .from("sightings")
     .upload(path, file, {
@@ -81,15 +64,7 @@ async function uploadImage(file: File): Promise<string> {
       contentType: file.type,
     });
 
-  // Log the full error for debugging (status 400, etc.).
   if (error) {
-    console.error("[uploadImage] Supabase Storage error:", {
-      message: error.message,
-      details: (error as { details?: string }).details,
-      status: (error as { status?: number }).status,
-      path,
-      bucket: "sightings",
-    });
     throw error;
   }
 
@@ -100,7 +75,6 @@ async function uploadImage(file: File): Promise<string> {
   const publicUrl = supabase.storage
     .from("sightings")
     .getPublicUrl(data.path).data.publicUrl;
-  console.log("[uploadImage] Subida OK. URL:", publicUrl);
   return publicUrl;
 }
 
@@ -125,10 +99,9 @@ export function PublishPage() {
   const imageUrl = watch("imageUrl");
   const category = watch("category");
 
-  // On select/take a photo: upload to Supabase Storage right away and preview.
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-selecting the same file
+    e.target.value = "";
     if (!file) return;
     setUploading(true);
     setPreviewUrl("");
@@ -149,7 +122,6 @@ export function PublishPage() {
     setValue("imageUrl", "", { shouldValidate: true });
   };
 
-  // Mock GPS: real API if available, otherwise a sample point.
   const getLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -182,7 +154,6 @@ export function PublishPage() {
         longitude: coords?.lng ?? null,
       });
 
-      // Optimistic update: show the new sighting in the feed/map right away.
       const optimistic: Sighting = {
         ...created,
         author: {
@@ -202,148 +173,146 @@ export function PublishPage() {
     }
   };
 
+  const busy = isSubmitting || uploading;
+
   return (
-    <div className="w-full max-w-[428px] mx-auto space-y-4 md:max-w-2xl">
-      <h1 className="text-2xl font-bold text-slate-50">Publicar avistamiento</h1>
+    <div className="w-full max-w-[428px] mx-auto space-y-4 md:max-w-2xl" aria-live="polite">
+      <div className="animate-fade-up space-y-4">
+        <h1 className="text-2xl font-bold text-slate-50">Publicar avistamiento</h1>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        {/* Photo upload */}
-        <div className="rounded-2xl border border-dashed border-white/20 bg-forest-900/40 p-4">
-          {previewUrl ? (
-            <div className="relative">
-              <img
-                src={previewUrl}
-                alt="Vista previa"
-                className="h-52 w-full rounded-xl object-cover"
-              />
-              {uploading && (
-                <div className="absolute inset-0 grid place-items-center rounded-xl bg-forest-950/60">
-                  <Spinner className="h-8 w-8" />
-                </div>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label="Quitar foto"
-                className="absolute right-2 top-2 bg-forest-950/70 px-3 py-1.5 text-xs"
-                onClick={clearImage}
-                disabled={uploading}
-              >
-                Quitar
-              </Button>
-            </div>
-          ) : uploading ? (
-            <div className="grid h-52 place-items-center">
-              <Spinner className="h-8 w-8" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="ghost" aria-label="Tomar foto" onClick={() => fileRef.current?.click()}>
-                <Camera size={18} /> Tomar foto
-              </Button>
-              <Button type="button" variant="ghost" aria-label="Subir desde la galería" onClick={() => fileRef.current?.click()}>
-                <ImageIcon size={18} /> Galería
-              </Button>
-            </div>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={onFile}
-          />
-          {errors.imageUrl && (
-            <p className="mt-2 text-xs text-red-400">{errors.imageUrl.message}</p>
-          )}
-        </div>
-
-        {/* Species name */}
-        <TextField
-          label="Nombre de la especie"
-          placeholder="Guacamaya tricolor"
-          error={errors.commonName?.message}
-          {...register("commonName")}
-        />
-
-        {/* Scientific name (optional) */}
-        <TextField
-          label="Nombre científico (opcional)"
-          placeholder="Ara macao"
-          error={errors.scientificName?.message}
-          {...register("scientificName")}
-        />
-
-        {/* Category selector */}
-        <div>
-          <span className="mb-1 block text-sm font-medium text-slate-200">Categoría</span>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map((cat) => {
-              const active = cat === category;
-              return (
-                <button
-                  key={cat}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          {/* Photo upload */}
+          <div className="animate-fade-up rounded-2xl border border-dashed border-white/20 bg-forest-900/40 transition hover:border-bio-500/40">
+            {previewUrl ? (
+              <div className="relative overflow-hidden rounded-2xl">
+                <img
+                  src={previewUrl}
+                  alt="Vista previa"
+                  className="h-52 w-full rounded-2xl object-cover"
+                />
+                {uploading && (
+                  <div className="absolute inset-0 grid place-items-center rounded-2xl bg-forest-950/60 backdrop-blur-sm">
+                    <Spinner className="h-8 w-8 text-bio-300" />
+                  </div>
+                )}
+                <Button
                   type="button"
-                  onClick={() => setValue("category", cat, { shouldValidate: true })}
-                  className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
-                    active
-                      ? "border-bio-500 bg-bio-500 text-white"
-                      : "border-white/10 text-slate-300 hover:border-white/20"
-                  }`}
+                  variant="ghost"
+                  aria-label="Quitar foto"
+                  className="absolute right-2 top-2 bg-forest-950/70 px-3 py-1.5 text-xs backdrop-blur"
+                  onClick={clearImage}
+                  disabled={uploading}
                 >
-                  {cat}
-                </button>
-              );
-            })}
+                  Quitar
+                </Button>
+              </div>
+            ) : uploading ? (
+              <div className="grid h-52 place-items-center">
+                <Spinner className="h-8 w-8 text-bio-300" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 p-4">
+                <Button type="button" variant="ghost" onClick={() => fileRef.current?.click()} className="hover:border-bio-500/40">
+                  <Camera size={18} /> Tomar foto
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => fileRef.current?.click()} className="hover:border-bio-500/40">
+                  <ImageIcon size={18} /> Galería
+                </Button>
+              </div>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={onFile}
+            />
+            {errors.imageUrl && (
+              <p className="mt-2 px-1 text-xs text-red-400">{errors.imageUrl.message}</p>
+            )}
           </div>
-          {errors.category && (
-            <p className="mt-1 text-xs text-red-400">{errors.category.message}</p>
-          )}
-        </div>
 
-        {/* Description */}
-        <label className="block text-sm text-slate-200">
-          <span className="mb-1 block font-medium">Descripción</span>
-          <textarea
-            rows={4}
-            placeholder="Comportamiento, características, hábitat…"
-            className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500"
-            {...register("description")}
+          <TextField
+            label="Nombre de la especie"
+            placeholder="Guacamaya tricolor"
+            error={errors.commonName?.message}
+            {...register("commonName")}
           />
-          {errors.description && (
-            <span className="mt-1 block text-xs text-red-400">
-              {errors.description.message}
+
+          <TextField
+            label="Nombre científico (opcional)"
+            placeholder="Ara macao"
+            error={errors.scientificName?.message}
+            {...register("scientificName")}
+          />
+
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-200">Categoría</span>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((cat) => {
+                const active = cat === category;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setValue("category", cat, { shouldValidate: true })}
+                    className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                      active
+                        ? "border-bio-500 bg-bio-500 text-white"
+                        : "border-white/10 text-slate-300 hover:border-white/20"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+            {errors.category && (
+              <p className="mt-1 text-xs text-red-400">{errors.category.message}</p>
+            )}
+          </div>
+
+          <label className="block text-sm text-slate-200">
+            <span className="mb-1 block font-medium">Descripción</span>
+            <textarea
+              rows={4}
+              placeholder="Comportamiento, características, hábitat…"
+              className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500"
+              {...register("description")}
+            />
+            {errors.description && (
+              <span className="mt-1 block text-xs text-red-400">
+                {errors.description.message}
+              </span>
+            )}
+          </label>
+
+          <TextField
+            label="Nombre del lugar"
+            placeholder="Reserva Natural El Tuparro"
+            error={errors.location?.message}
+            {...register("location")}
+          />
+
+          <Button type="button" variant="primary" className="w-full" aria-label="Obtener ubicación GPS" onClick={getLocation}>
+            <Crosshair size={18} /> Obtener ubicación GPS
+          </Button>
+
+          <div className="relative grid h-36 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-forest-800 transition hover:border-white/20">
+            <MapPin size={28} className="text-bio-400" />
+            <span className="absolute bottom-2 px-2 text-center text-xs text-slate-300">
+              {coords
+                ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+                : "Ubicación no capturada"}
             </span>
-          )}
-        </label>
+          </div>
 
-        {/* Location */}
-        <TextField
-          label="Nombre del lugar"
-          placeholder="Reserva Natural El Tuparro"
-          error={errors.location?.message}
-          {...register("location")}
-        />
-
-        <Button type="button" variant="ghost" className="w-full" aria-label="Obtener ubicación GPS" onClick={getLocation}>
-          <Crosshair size={18} /> Obtener ubicación GPS
-        </Button>
-
-        {/* Mock mini-map */}
-        <div className="relative grid h-36 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-forest-800">
-          <MapPin size={28} className="text-bio-400" />
-          <span className="absolute bottom-2 px-2 text-center text-xs text-slate-300">
-            {coords
-              ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
-              : "Ubicación no capturada"}
-          </span>
-        </div>
-
-        <Button type="submit" className="w-full" disabled={isSubmitting || uploading} aria-label="Publicar avistamiento">
-          Publicar
-        </Button>
-      </form>
+          <Button type="submit" className="w-full" disabled={busy} aria-label="Publicar avistamiento">
+            {busy ? "Publicando…" : "Publicar"}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

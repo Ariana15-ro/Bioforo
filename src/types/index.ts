@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Shared domain types for BioForo.
- * These are placeholders for the upcoming business logic (auth, feed, sightings…).
+ * These are placeholders for the upcoming business logic (auth, feed, sightingsâ€¦).
  */
 
 /** A user account. */
@@ -10,6 +10,16 @@ export interface User {
   displayName: string;
   avatarUrl?: string;
   bio?: string;
+}
+
+export interface Profile {
+  id: string;
+  email: string;
+  fullName: string;
+  academicProgram: string;
+  avatarUrl?: string;
+  bio?: string;
+  location?: string;
 }
 
 /** Available sighting categories used by the feed chips. */
@@ -48,6 +58,7 @@ export interface Comment {
   authorName: string;
   text: string;
   createdAt: string;
+  commentsCount?: number;
 }
 
 /** Raw DB row for a sighting (snake_case). */

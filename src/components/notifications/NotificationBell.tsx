@@ -1,35 +1,155 @@
-import { Bell } from "lucide-react";
+﻿import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
-import {
-  useNotificationsStore,
-  type AppNotification,
-} from "@/store/notificationsStore";
+import { useNotificationsStore } from "@/store/notificationsStore";
 import { usePostModal } from "@/components/modals/PostDetailModal";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
+import type { AppNotification } from "@/lib/supabaseQueries";
 
-/**
- * Global notification bell with unread badge.
- * - Desktop: dropdown panel. Mobile: bottom-sheet.
- * - Click an item linked to a post -> opens PostDetailModal.
- * - Subscribes to Supabase Realtime (likes/comments) and creates live
- *   notifications when the current user owns the affected sighting.
- */
+function useNotificationsRealtime(userId: string | undefined) {
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
+  const BASE_DELAY = 1000;
+
+  useEffect(() => {
+    if (!userId) {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      retryCountRef.current = 0;
+      return;
+    }
+
+    let cancelled = false;
+
+    const subscribe = async () => {
+      if (cancelled) return;
+
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+
+      const channel = supabase.channel(`notifications-${userId}`);
+      channelRef.current = channel;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("subscription timeout")), 8000);
+
+          channel
+            .on(
+              "postgres_changes",
+              { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+              async (payload) => {
+                const row = payload.new as {
+                  id: string;
+                  user_id: string;
+                  actor_id: string | null;
+                  type: "like" | "comment" | "nearby" | "follow";
+                  sighting_id: string | null;
+                  comment_text: string | null;
+                  read: boolean;
+                  created_at: string;
+                };
+
+                let actorName = "Alguien";
+                if (row.actor_id) {
+                  try {
+                    const { data } = await supabase
+                      .from("profiles")
+                      .select("full_name")
+                      .eq("id", row.actor_id)
+                      .single();
+                    const name = (data?.full_name as string | undefined)?.trim();
+                    if (name) actorName = name;
+                  } catch {
+                    // ignore
+                  }
+                }
+
+                const text =
+                  row.type === "like"
+                    ? `le dio me gusta a tu avistamiento`
+                    : row.type === "comment"
+                      ? `comentó: «${row.comment_text ?? ""}»`
+                      : row.type === "nearby"
+                        ? `Nuevo avistamiento cerca`
+                        : `empezó a seguirte`;
+
+                useNotificationsStore.getState().addNotification({
+                  id: row.id,
+                  type: row.type,
+                  userName: actorName,
+                  text,
+                  createdAt: row.created_at,
+                  read: row.read,
+                  sightingId: row.sighting_id ?? undefined,
+                });
+              },
+            )
+            .subscribe((status) => {
+              if (status === "SUBSCRIBED") {
+                clearTimeout(timeout);
+                retryCountRef.current = 0;
+                resolve();
+              } else if (status === "CHANNEL_ERROR") {
+                clearTimeout(timeout);
+                reject(new Error("channel_error"));
+              } else if (status === "TIMED_OUT") {
+                clearTimeout(timeout);
+                reject(new Error("timeout"));
+              }
+            });
+        });
+      } catch (err) {
+        if (cancelled) return;
+
+        if (retryCountRef.current < MAX_RETRIES) {
+          const delay = BASE_DELAY * Math.pow(2, retryCountRef.current);
+          retryCountRef.current += 1;
+          setTimeout(subscribe, delay);
+        } else {
+          // Silencioso después de agotar reintentos para no spamear consola
+          retryCountRef.current = MAX_RETRIES;
+        }
+      }
+    };
+
+    subscribe();
+
+    return () => {
+      cancelled = true;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [userId]);
+}
+
 export function NotificationBell() {
   const notifications = useNotificationsStore((s) => s.notifications);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const markRead = useNotificationsStore((s) => s.markRead);
-  const addNotification = useNotificationsStore((s) => s.addNotification);
+  const loadNotifications = useNotificationsStore((s) => s.load);
   const { openPost } = usePostModal();
 
   const userId = useAuthStore((s) => s.user?.id);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click / Escape.
+  useNotificationsRealtime(userId);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
   useEffect(() => {
     if (!open) return;
     const onClick = (e: MouseEvent) => {
@@ -47,67 +167,6 @@ export function NotificationBell() {
       window.removeEventListener("keydown", onKey);
     };
   }, [open]);
-
-  // Realtime: notify the owner when someone likes/comments on their post.
-  useEffect(() => {
-    if (!userId) return;
-
-    const channel = supabase
-      .channel("notifications-feed")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "likes" },
-        async (payload) => {
-          const row = payload.new as { sighting_id: string; user_id: string };
-          const { data: sighting } = await supabase
-            .from("sightings")
-            .select("user_id, species_name")
-            .eq("id", row.sighting_id)
-            .single();
-          if (!sighting || sighting.user_id !== userId) return;
-          if (row.user_id === userId) return; // ignore self
-          const actor = await fetchActorName(row.user_id);
-          addNotification({
-            id: `live-like-${row.sighting_id}-${Date.now()}`,
-            type: "like",
-            userName: actor,
-            text: `le dio me gusta a tu avistamiento de ${sighting.species_name}`,
-            createdAt: new Date().toISOString(),
-            read: false,
-            sightingId: row.sighting_id,
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "comments" },
-        async (payload) => {
-          const row = payload.new as { sighting_id: string; user_id: string; comment: string };
-          const { data: sighting } = await supabase
-            .from("sightings")
-            .select("user_id, species_name")
-            .eq("id", row.sighting_id)
-            .single();
-          if (!sighting || sighting.user_id !== userId) return;
-          if (row.user_id === userId) return;
-          const actor = await fetchActorName(row.user_id);
-          addNotification({
-            id: `live-comment-${row.sighting_id}-${Date.now()}`,
-            type: "comment",
-            userName: actor,
-            text: `comentó en tu avistamiento de ${sighting.species_name}: «${row.comment}»`,
-            createdAt: new Date().toISOString(),
-            read: false,
-            sightingId: row.sighting_id,
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, addNotification]);
 
   const handleOpen = (n: AppNotification) => {
     if (n.sightingId) {
@@ -137,7 +196,6 @@ export function NotificationBell() {
 
       {open && (
         <>
-          {/* Mobile: bottom-sheet */}
           <div
             className="fixed inset-0 z-[1900] bg-black/50 backdrop-blur-sm md:hidden"
             onClick={() => setOpen(false)}
@@ -162,7 +220,7 @@ export function NotificationBell() {
             </div>
             {notifications.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-400">
-                No tienes notificaciones.
+                No tienes notificaciones nuevas.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -176,20 +234,4 @@ export function NotificationBell() {
       )}
     </div>
   );
-}
-
-/** Best-effort actor display name from auth users (falls back to "Alguien"). */
-async function fetchActorName(actorId: string): Promise<string> {
-  try {
-    const { data } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", actorId)
-      .single();
-    const name = (data?.full_name as string | undefined)?.trim();
-    if (name) return name;
-  } catch {
-    /* ignore */
-  }
-  return "Alguien";
 }

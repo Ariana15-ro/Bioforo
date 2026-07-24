@@ -5,7 +5,6 @@ import { BiodiversityMap } from "@/components/map/BiodiversityMap";
 import { useSightingsStore } from "@/store/sightingsStore";
 import type { Sighting } from "@/types";
 
-/** Category chips for filtering the map markers. */
 const CATEGORIES = [
   "Todas",
   "Flora",
@@ -15,11 +14,6 @@ const CATEGORIES = [
   "Ecosistemas",
 ] as const;
 
-/**
- * Map screen. Shows sighting pins on the functional map, with search +
- * category filtering, and opens the PostDetailModal on pin click.
- * Route: /map
- */
 export function MapPage() {
   const sightings = useSightingsStore((s) => s.sightings);
 
@@ -27,7 +21,6 @@ export function MapPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("Todas");
 
-  // Debounce the search term (300ms).
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(query), 300);
     return () => clearTimeout(timer);
@@ -42,16 +35,15 @@ export function MapPage() {
       const matchesSearch =
         term === "" ||
         s.commonName.toLowerCase().includes(term) ||
-        s.species.toLowerCase().includes(term) ||
+        (s.species ?? "").toLowerCase().includes(term) ||
         s.location.toLowerCase().includes(term);
       return hasCoords && matchesCategory && matchesSearch;
     });
   }, [sightings, searchTerm, activeCategory]);
 
   return (
-    <div className="space-y-3">
-      {/* Search */}
-      <label className="relative block">
+    <div className="w-full max-w-[428px] mx-auto space-y-3 md:mx-0 md:max-w-none" aria-live="polite">
+      <label className="animate-fade-up relative block">
         <Search
           size={18}
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -60,14 +52,13 @@ export function MapPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar ubicación..."
-          aria-label="Buscar ubicación"
-          className="w-full rounded-full border border-white/10 bg-forest-900/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-bio-500"
+          placeholder="Buscar ubicaci�n..."
+          aria-label="Buscar ubicaci�n"
+          className="w-full rounded-full border border-white/10 bg-forest-900/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-bio-500"
         />
       </label>
 
-      {/* Category chips */}
-      <div className="no-scrollbar flex gap-2 overflow-x-auto">
+      <div className="animate-fade-up no-scrollbar flex gap-2 overflow-x-auto">
         {CATEGORIES.map((cat) => {
           const active = cat === activeCategory;
           return (
@@ -87,19 +78,23 @@ export function MapPage() {
         })}
       </div>
 
-      {/* Map */}
-      <div className="relative h-[72vh] overflow-hidden rounded-2xl border border-white/10 lg:h-[calc(100vh-13rem)]">
-        <BiodiversityMap
-          sightings={visible}
-          className="h-full w-full"
-        />
-      </div>
+      {visible.length > 0 && (
+        <div className="animate-fade-up relative h-[72vh] overflow-hidden rounded-2xl border border-white/10 bg-forest-900/60 lg:h-[calc(100vh-13rem)]">
+          <BiodiversityMap sightings={visible} className="h-full w-full" />
+        </div>
+      )}
 
-      <p className="text-sm text-slate-400">
-        {visible.length === 0
-          ? "No hay avistamientos que coincidan con la búsqueda."
-          : `${visible.length} avistamiento${visible.length === 1 ? "" : "s"} en el mapa`}
-      </p>
+      {visible.length === 0 && (
+        <p className="py-10 text-center text-sm text-slate-400">
+          No hay avistamientos que coincidan con la búqueda.
+        </p>
+      )}
+
+      {visible.length > 0 && (
+        <p className="text-sm text-slate-400">
+          {visible.length} avistamiento{visible.length === 1 ? "" : "s"} en el mapa
+        </p>
+      )}
     </div>
   );
 }

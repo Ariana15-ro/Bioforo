@@ -1,7 +1,6 @@
-import { supabase } from "@/lib/supabase";
+﻿import { supabase } from "@/lib/supabase";
 import type { Comment, Sighting, SightingRow, User } from "@/types";
 
-/** Maps a DB sighting row into the app's domain `Sighting` type. */
 export function mapSightingRow(r: SightingRow): Sighting {
   const author: User = {
     id: r.user_id ?? "anon",
@@ -33,10 +32,6 @@ export interface FetchSightingsOptions {
   offset?: number;
 }
 
-/**
- * Fetches sightings ordered by `created_at` DESC, with optional filters
- * (owner, category, free-text search) and offset pagination.
- */
 export async function fetchSightings({
   userId,
   category,
@@ -62,7 +57,6 @@ export async function fetchSightings({
   return ((data as SightingRow[] | null) ?? []).map(mapSightingRow);
 }
 
-/** Inserts a new sighting and returns the created row. */
 export async function createSighting(input: {
   userId: string;
   commonName: string;
@@ -94,7 +88,6 @@ export async function createSighting(input: {
   return mapSightingRow(data as SightingRow);
 }
 
-/** Fetches comments for a sighting, oldest first. */
 export async function fetchComments(sightingId: string): Promise<Comment[]> {
   const { data, error } = await supabase
     .from("comments")
@@ -113,19 +106,42 @@ export async function fetchComments(sightingId: string): Promise<Comment[]> {
   }));
 }
 
-/** Adds a comment and returns it. */
 export async function addComment(
   sightingId: string,
   userId: string,
   text: string,
-): Promise<Comment> {
+): Promise<Comment & { commentsCount: number }> {
   const { data, error } = await supabase
     .from("comments")
     .insert({ sighting_id: sightingId, user_id: userId, comment: text })
-    .select()
+    .select("*")
     .single();
 
   if (error) throw error;
+
+  const { data: fresh } = await supabase
+    .from("sightings")
+    .select("comments_count, user_id, species_name")
+    .eq("id", sightingId)
+    .single();
+
+  const commentsCount = Number((fresh as Record<string, unknown> | null)?.comments_count ?? 0);
+  const ownerId = (fresh as Record<string, unknown> | null)?.user_id as string | undefined;
+
+  if (ownerId && ownerId !== userId) {
+    try {
+      await supabase.from("notifications").insert({
+        user_id: ownerId,
+        actor_id: userId,
+        type: "comment",
+        sighting_id: sightingId,
+        comment_text: text,
+      });
+    } catch {
+      // no bloquear el comentario si la notificación falla
+    }
+  }
+
   return {
     id: data.id as string,
     sightingId: data.sighting_id as string,
@@ -133,10 +149,10 @@ export async function addComment(
     authorName: "Usuario BioForo",
     text: data.comment as string,
     createdAt: data.created_at as string,
+    commentsCount,
   };
 }
 
-/** Returns the set of sighting ids the given user has liked. */
 export async function fetchUserLikes(userId: string): Promise<Set<string>> {
   const { data, error } = await supabase
     .from("likes")
@@ -147,11 +163,10 @@ export async function fetchUserLikes(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((r: Record<string, unknown>) => r.sighting_id as string));
 }
 
-/** Toggles a like. Returns the new liked state. */
 export async function toggleLike(
   sightingId: string,
   userId: string,
-): Promise<boolean> {
+): Promise<{ liked: boolean; likesCount: number }> {
   const { data: existing } = await supabase
     .from("likes")
     .select("sighting_id")
@@ -159,6 +174,7 @@ export async function toggleLike(
     .eq("user_id", userId)
     .maybeSingle();
 
+  let liked: boolean;
   if (existing) {
     const { error } = await supabase
       .from("likes")
@@ -166,18 +182,221 @@ export async function toggleLike(
       .eq("sighting_id", sightingId)
       .eq("user_id", userId);
     if (error) throw error;
-    return false;
+    liked = false;
+  } else {
+    const { error } = await supabase
+      .from("likes")
+      .insert({ sighting_id: sightingId, user_id: userId });
+    if (error) throw error;
+    liked = true;
   }
 
-  const { error } = await supabase
-    .from("likes")
-    .insert({ sighting_id: sightingId, user_id: userId });
-  if (error) throw error;
-  return true;
+  const { data: fresh } = await supabase
+    .from("sightings")
+    .select("likes_count, user_id, species_name")
+    .eq("id", sightingId)
+    .single();
+
+  const likesCount = Number((fresh as Record<string, unknown> | null)?.likes_count ?? 0);
+  const ownerId = (fresh as Record<string, unknown> | null)?.user_id as string | undefined;
+
+  if (liked && ownerId && ownerId !== userId) {
+    try {
+      await supabase.from("notifications").insert({
+        user_id: ownerId,
+        actor_id: userId,
+        type: "like",
+        sighting_id: sightingId,
+      });
+    } catch {
+      // no bloquear el like si la notificación falla
+    }
+  }
+
+  return { liked, likesCount };
 }
 
-/** Deletes a sighting. RLS only allows the owner to delete their own post. */
+export async function fetchSightingById(id: string): Promise<Sighting | null> {
+  const { data, error } = await supabase
+    .from("sightings")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapSightingRow(data as SightingRow);
+}
+
+export interface Profile {
+  id: string;
+  email: string;
+  fullName: string;
+  academicProgram: string;
+  avatarUrl?: string;
+  bio?: string;
+  location?: string;
+}
+
+export interface UpdateProfileInput {
+  fullName?: string;
+  academicProgram?: string;
+  avatarUrl?: string;
+  bio?: string;
+  location?: string;
+}
+
+function mapProfileRow(row: Record<string, unknown>): Profile {
+  return {
+    id: row.id as string,
+    email: (row.email as string) ?? "",
+    fullName: (row.full_name as string) ?? "",
+    academicProgram: (row.academic_program as string) ?? "",
+    avatarUrl: (row.avatar_url as string) || undefined,
+    bio: (row.bio as string) || undefined,
+    location: (row.location as string) || undefined,
+  };
+}
+
+export async function fetchProfile(profileId: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) return null;
+  if (!data) return null;
+  return mapProfileRow(data);
+}
+
+export async function updateProfile(profileId: string, input: UpdateProfileInput): Promise<Profile> {
+  const payload: Record<string, unknown> = {
+    id: profileId,
+  };
+  if (input.fullName !== undefined) payload.full_name = input.fullName || null;
+  if (input.academicProgram !== undefined) payload.academic_program = input.academicProgram || null;
+  if (input.avatarUrl !== undefined) payload.avatar_url = input.avatarUrl || null;
+  if (input.bio !== undefined) payload.bio = input.bio || null;
+  if (input.location !== undefined) payload.location = input.location || null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert(payload, { onConflict: "id" })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapProfileRow(data);
+}
+
 export async function deleteSighting(id: string): Promise<void> {
   const { error } = await supabase.from("sightings").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export type NotificationType = "like" | "comment" | "nearby" | "follow";
+
+export interface DbNotification {
+  id: string;
+  user_id: string;
+  actor_id: string | null;
+  type: NotificationType;
+  sighting_id: string | null;
+  comment_text: string | null;
+  read: boolean;
+  created_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  userName: string;
+  text: string;
+  sightingName?: string;
+  createdAt: string;
+  read: boolean;
+  sightingId?: string;
+}
+
+function buildNotificationText(
+  type: NotificationType,
+  sightingName?: string,
+  commentText?: string | null,
+): string {
+  const quoted = sightingName ? ` «${sightingName}»` : "";
+  switch (type) {
+    case "like":
+      return `le dio me gusta a tu avistamiento${quoted}`;
+    case "comment":
+      return `comentó en ${quoted}: «${(commentText ?? "").slice(0, 120)}»`;
+    case "nearby":
+      return `Nuevo avistamiento cerca${quoted}`;
+    case "follow":
+      return `empezó a seguirte`;
+  }
+}
+
+function mapNotification(row: DbNotification, actorName: string, sightingName?: string): AppNotification {
+  return {
+    id: row.id,
+    type: row.type,
+    userName: actorName,
+    text: buildNotificationText(row.type, sightingName, row.comment_text),
+    sightingName,
+    createdAt: row.created_at,
+    read: row.read,
+    sightingId: row.sighting_id ?? undefined,
+  };
+}
+
+async function fetchActorName(actorId: string | null): Promise<string> {
+  if (!actorId) return "Alguien";
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", actorId)
+      .single();
+    const name = (data?.full_name as string | undefined)?.trim();
+    if (name) return name;
+  } catch {
+    // ignore
+  }
+  return "Alguien";
+}
+
+export async function fetchNotifications(): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*, sighting:sightings!inner(species_name, scientific_name)")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw error;
+  const rows = (data ?? []) as (DbNotification & { sighting?: { species_name: string | null; scientific_name: string | null } })[];
+  const mapped = await Promise.all(
+    rows.map(async (row) => {
+      const actorName = await fetchActorName(row.actor_id);
+      const sightingName = row.sighting?.species_name ?? row.sighting?.scientific_name ?? undefined;
+      return mapNotification(row, actorName, sightingName);
+    }),
+  );
+  return mapped;
+}
+
+export async function markNotificationAsRead(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("user_id", userId)
+    .eq("read", false);
   if (error) throw error;
 }
