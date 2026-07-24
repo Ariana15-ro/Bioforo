@@ -86,7 +86,7 @@ export function MapPage() {
 
       {visible.length === 0 && (
         <p className="py-10 text-center text-sm text-slate-400">
-          No hay avistamientos que coincidan con la bÃºqueda.
+          No hay avistamientos que coincidan con la búsqueda.
         </p>
       )}
 
