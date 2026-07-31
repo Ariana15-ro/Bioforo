@@ -108,6 +108,7 @@ function PostDetailModalBase() {
   const selectedId = useSightingsStore((s) => s.selectedId);
   const closePost = useSightingsStore((s) => s.closePost);
   const sightings = useSightingsStore((s) => s.sightings);
+  const updateSighting = useSightingsStore((s) => s.updateSighting);
   const removeSighting = useSightingsStore((s) => s.removeSighting);
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -121,6 +122,9 @@ function PostDetailModalBase() {
   const [deleting, setDeleting] = useState(false);
   const [authorAvatarUrl, setAuthorAvatarUrl] = useState<string | undefined>(undefined);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const sightingId = sighting?.id ?? null;
 
   useEffect(() => {
     if (!sighting) {
@@ -153,59 +157,57 @@ function PostDetailModalBase() {
     return () => {
       active = false;
     };
-  }, [sighting, userId]);
+  }, [selectedId, userId]);
 
   useEffect(() => {
-    if (!sighting) return;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    try {
-      channel = supabase
-        .channel(`post-detail-${sighting.id}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "likes", filter: `sighting_id=eq.${sighting.id}` },
-          async () => {
-            const fresh = await fetchSightingById(sighting.id);
-            if (fresh) useSightingsStore.getState().updateSighting(fresh);
-            if (userId) {
-              const { data: existing } = await supabase
-                .from("likes")
-                .select("sighting_id")
-                .eq("sighting_id", sighting.id)
-                .eq("user_id", userId)
-                .maybeSingle();
-              setLiked(Boolean(existing));
-            }
-          },
-        )
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "comments", filter: `sighting_id=eq.${sighting.id}` },
-          async () => {
-            const fresh = await fetchSightingById(sighting.id);
-            if (fresh) useSightingsStore.getState().updateSighting(fresh);
-            fetchComments(sighting.id).then(setComments).catch(() => {});
-          },
-        )
-        .subscribe((status) => {
-          if (status === "SUBSCRIBED") {
-            console.info(`[realtime] post-detail ready for ${sighting.id}`);
-          } else if (status === "CHANNEL_ERROR") {
-            console.warn(`[realtime] post-detail blocked for ${sighting.id}`);
-          } else if (status === "TIMED_OUT") {
-            console.warn(`[realtime] post-detail timeout for ${sighting.id}`);
-          }
-        });
-    } catch (err) {
-      console.warn(`[realtime] post-detail subscription failed for ${sighting.id}`, err);
+    if (!sightingId) return;
+
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
+    const channel = supabase
+      .channel(`post-detail-${sightingId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "likes", filter: `sighting_id=eq.${sightingId}` },
+        () => {
+          fetchSightingById(sightingId).then((fresh) => {
+            if (fresh) updateSighting(fresh);
+            if (userId) {
+              supabase
+                .from("likes")
+                .select("sighting_id")
+                .eq("sighting_id", sightingId)
+                .eq("user_id", userId)
+                .maybeSingle()
+                .then(({ data: existing }) => {
+                  setLiked(Boolean(existing));
+                });
+            }
+          }).catch(() => {});
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments", filter: `sighting_id=eq.${sightingId}` },
+        () => {
+          fetchComments(sightingId).then(setComments).catch(() => {});
+        },
+      );
+
+    channelRef.current = channel;
+
+    channel.subscribe();
+
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
-  }, [sighting, userId]);
+  }, [sightingId, userId, updateSighting]);
 
   useEffect(() => {
     if (!open) return;
@@ -238,68 +240,63 @@ function PostDetailModalBase() {
   }, [open]);
 
   const handleToggleLike = useCallback(async () => {
-    if (!sighting || !userId) {
+    if (!sightingId || !userId) {
       toast.error("Inicia sesión para dar me gusta.");
       return;
     }
     const prevLiked = liked;
     setLiked(!prevLiked);
     try {
-      const result = await toggleLike(sighting.id, userId);
-      if (result.liked !== prevLiked) {
-        setLiked(result.liked);
-      }
-      const fresh = await fetchSightingById(sighting.id);
-      if (fresh) {
-        useSightingsStore.getState().updateSighting(fresh);
-      }
+      const result = await toggleLike(sightingId, userId);
+      setLiked(result.liked);
+      const fresh = await fetchSightingById(sightingId);
+      if (fresh) updateSighting(fresh);
     } catch {
       setLiked(prevLiked);
       toast.error("No se pudo actualizar el me gusta.");
     }
-  }, [sighting, userId, liked]);
+  }, [sightingId, userId, liked, updateSighting]);
 
   const handleAddComment = useCallback(
     (text: string) => {
-      if (!sighting || !userId) {
+      if (!sightingId || !userId) {
         toast.error("Inicia sesión para comentar.");
         return;
       }
       const optimistic: Comment = {
         id: `temp-${Date.now()}`,
-        sightingId: sighting.id,
+        sightingId: sightingId,
         authorId: userId,
         authorName: "Tú",
         text,
         createdAt: new Date().toISOString(),
       };
       setComments((prev) => [...prev, optimistic]);
-      addComment(sighting.id, userId, text)
+      addComment(sightingId, userId, text)
         .then(async (created) => {
           setComments((prev) =>
             prev.map((c) => (c.id === optimistic.id ? created : c)),
           );
-          const fresh = await fetchSightingById(sighting.id);
-          if (fresh) {
-            useSightingsStore.getState().updateSighting(fresh);
-          }
+          fetchSightingById(sightingId).then((fresh) => {
+            if (fresh) updateSighting(fresh);
+          });
         })
         .catch(() => {
           setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
           toast.error("No se pudo enviar el comentario.");
         });
     },
-    [sighting, userId],
+    [sightingId, userId, updateSighting],
   );
 
   const isOwner = Boolean(userId && sighting && sighting.author.id === userId);
 
   const handleDelete = useCallback(async () => {
-    if (!sighting) return;
+    if (!sightingId) return;
     setDeleting(true);
     try {
-      await deleteSighting(sighting.id);
-      removeSighting(sighting.id);
+      await deleteSighting(sightingId);
+      removeSighting(sightingId);
       closePost();
       toast.success("Publicación eliminada.");
     } catch (err) {
@@ -309,87 +306,95 @@ function PostDetailModalBase() {
         err instanceof Error ? err.message : "No se pudo eliminar la publicación.",
       );
     }
-  }, [sighting, removeSighting, closePost]);
+  }, [sightingId, removeSighting, closePost]);
 
   if (!open || !sighting) return null;
 
   return (
     <Modal open={open} onClose={closePost}>
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="post-detail-title">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="post-detail-title"
+        className="flex max-h-[90vh] flex-col overflow-hidden"
+      >
         <SpeciesImage
           src={sighting.imageUrl}
           alt={sighting.commonName}
-          className="h-64 w-full"
+          className="h-64 w-full shrink-0"
         />
-        <div className="space-y-3 p-5">
-          <div>
-            <div className="flex items-start justify-between gap-3">
-              <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
-                {sighting.commonName}
-              </h2>
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                  aria-label="Eliminar publicación"
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-500/15 hover:text-red-400"
-                >
-                  <Trash2 size={18} />
-                </button>
+        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
+                  {sighting.commonName}
+                </h2>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(true)}
+                    aria-label="Eliminar publicación"
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-500/15 hover:text-red-400"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+              </div>
+              {sighting.species && (
+                <p className="text-xs italic text-slate-400">{sighting.species}</p>
               )}
+              <span className="mt-1 inline-block rounded-full bg-bio-500/15 px-2.5 py-0.5 text-xs font-medium text-bio-300">
+                {sighting.category}
+              </span>
             </div>
-            {sighting.species && (
-              <p className="text-xs italic text-slate-400">{sighting.species}</p>
-            )}
-            <span className="mt-1 inline-block rounded-full bg-bio-500/15 px-2.5 py-0.5 text-xs font-medium text-bio-300">
-              {sighting.category}
-            </span>
-          </div>
 
-          <p className="flex items-center gap-1 text-sm text-slate-300">
-            <MapPin size={15} className="text-bio-400" />
-            {sighting.location}
-          </p>
+            <p className="flex items-center gap-1 text-sm text-slate-300">
+              <MapPin size={15} className="text-bio-400" />
+              {sighting.location}
+            </p>
 
-          <p className="text-sm text-slate-200">{sighting.description}</p>
+            <p className="text-sm text-slate-200">{sighting.description}</p>
 
-          <div className="flex items-center justify-between border-t border-white/5 pt-3">
-            <div className="flex items-center gap-2">
-              <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
-              <div className="text-xs">
-                <p className="font-medium text-slate-100">
-                  {sighting.author.displayName}
-                </p>
-                <p className="text-slate-400">
-                  {formatDistanceToNow(new Date(sighting.createdAt), {
-                    addSuffix: true,
-                    locale: es,
-                  })}
-                </p>
+            <div className="flex items-center justify-between border-t border-white/5 pt-3">
+              <div className="flex items-center gap-2">
+                <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
+                <div className="text-xs">
+                  <p className="font-medium text-slate-100">
+                    {sighting.author.displayName}
+                  </p>
+                  <p className="text-slate-400">
+                    {formatDistanceToNow(new Date(sighting.createdAt), {
+                      addSuffix: true,
+                      locale: es,
+                    })}
+                  </p>
+                </div>
               </div>
+              <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
             </div>
-            <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
-          </div>
 
-          <div className="border-t border-white/5 pt-3">
-            <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-              <MessageCircle size={16} /> Comentarios
-            </h3>
-            {commentsLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-4/5" />
-              </div>
-            ) : comments.length === 0 ? (
-              <p className="text-xs text-slate-400">Sé el primero en comentar.</p>
-            ) : (
-              <ul className="space-y-3">
-                {comments.map((c) => (
-                  <CommentItem key={c.id} comment={c} />
-                ))}
-              </ul>
-            )}
-            <CommentInput onSend={handleAddComment} />
+            <div className="border-t border-white/5 pt-3">
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                <MessageCircle size={16} /> Comentarios
+              </h3>
+              {commentsLoading ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                </div>
+              ) : comments.length === 0 ? (
+                <p className="text-xs text-slate-400">Sé el primero en comentar.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {comments.map((c) => (
+                    <CommentItem key={c.id} comment={c} />
+                  ))}
+                </ul>
+              )}
+              <CommentInput onSend={handleAddComment} />
+            </div>
           </div>
         </div>
 

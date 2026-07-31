@@ -1,11 +1,11 @@
 ﻿import { supabase } from "@/lib/supabase";
 import type { Comment, Sighting, SightingRow, User } from "@/types";
 
-export function mapSightingRow(r: SightingRow): Sighting {
+export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, string>): Sighting {
   const author: User = {
     id: r.user_id ?? "anon",
     username: "usuario",
-    displayName: "Usuario BioForo",
+    displayName: profilesMap?.[r.user_id ?? ""] ?? "Usuario BioForo",
   };
   return {
     id: r.id,
@@ -54,7 +54,26 @@ export async function fetchSightings({
 
   const { data, error } = await query;
   if (error) throw error;
-  return ((data as SightingRow[] | null) ?? []).map(mapSightingRow);
+  const rows = (data as SightingRow[] | null) ?? [];
+
+  const userIds = [...new Set(rows.map((r) => r.user_id).filter((id): id is string => id !== null && id !== "anon"))];
+  let profilesMap: Record<string, string> = {};
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    if (profilesData) {
+      profilesMap = Object.fromEntries(
+        profilesData.map((p: Record<string, unknown>) => [
+          p.id as string,
+          (p.full_name as string) ?? "Usuario BioForo",
+        ]),
+      );
+    }
+  }
+
+  return rows.map((r) => mapSightingRow(r, profilesMap));
 }
 
 export async function createSighting(input: {
@@ -85,7 +104,41 @@ export async function createSighting(input: {
     .single();
 
   if (error) throw error;
-  return mapSightingRow(data as SightingRow);
+
+  const row = data as SightingRow;
+  let displayName = "Usuario BioForo";
+  if (row.user_id && row.user_id !== "anon") {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", row.user_id)
+      .maybeSingle();
+    if (profileData?.full_name) {
+      displayName = profileData.full_name as string;
+    }
+  }
+
+  const author: User = {
+    id: row.user_id ?? "anon",
+    username: "usuario",
+    displayName,
+  };
+
+  return {
+    id: row.id,
+    species: row.scientific_name ?? "",
+    commonName: row.species_name,
+    description: row.description ?? "",
+    imageUrl: row.image_url ?? "",
+    location: row.location ?? "",
+    category: (row.category as Sighting["category"]) ?? "Fauna",
+    latitude: row.latitude ?? 0,
+    longitude: row.longitude ?? 0,
+    createdAt: row.created_at,
+    likes: row.likes_count ?? 0,
+    comments: row.comments_count ?? 0,
+    author,
+  };
 }
 
 export async function fetchComments(sightingId: string): Promise<Comment[]> {
@@ -96,11 +149,31 @@ export async function fetchComments(sightingId: string): Promise<Comment[]> {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map((c: Record<string, unknown>) => ({
+
+  const rows = (data ?? []) as Record<string, unknown>[];
+  const userIds = [...new Set(rows.map((r) => (r.user_id as string) ?? "anon"))];
+
+  let profilesMap: Record<string, string> = {};
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds.filter((id) => id !== "anon"));
+    if (profilesData) {
+      profilesMap = Object.fromEntries(
+        profilesData.map((p: Record<string, unknown>) => [
+          p.id as string,
+          (p.full_name as string) ?? "Usuario BioForo",
+        ]),
+      );
+    }
+  }
+
+  return rows.map((c: Record<string, unknown>) => ({
     id: c.id as string,
     sightingId: c.sighting_id as string,
     authorId: (c.user_id as string) ?? "anon",
-    authorName: "Usuario BioForo",
+    authorName: profilesMap[(c.user_id as string) ?? "anon"] ?? "Usuario BioForo",
     text: c.comment as string,
     createdAt: c.created_at as string,
   }));
@@ -224,7 +297,46 @@ export async function fetchSightingById(id: string): Promise<Sighting | null> {
     .maybeSingle();
 
   if (error || !data) return null;
-  return mapSightingRow(data as SightingRow);
+
+  const row = data as SightingRow;
+  const author: User = {
+    id: row.user_id ?? "anon",
+    username: "usuario",
+    displayName: "Usuario BioForo",
+  };
+
+  if (row.user_id && row.user_id !== "anon") {
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", row.user_id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.warn("[fetchSightingById] profile query error for", row.user_id, profileError.message);
+    } else if (profileData) {
+      author.displayName = (profileData.full_name as string) || author.displayName;
+      author.avatarUrl = (profileData.avatar_url as string) || undefined;
+    } else {
+      console.warn("[fetchSightingById] no profile row for", row.user_id);
+    }
+  }
+
+  return {
+    id: row.id,
+    species: row.scientific_name ?? "",
+    commonName: row.species_name,
+    description: row.description ?? "",
+    imageUrl: row.image_url ?? "",
+    location: row.location ?? "",
+    category: (row.category as Sighting["category"]) ?? "Fauna",
+    latitude: row.latitude ?? 0,
+    longitude: row.longitude ?? 0,
+    createdAt: row.created_at,
+    likes: row.likes_count ?? 0,
+    comments: row.comments_count ?? 0,
+    author,
+  };
 }
 
 export interface Profile {

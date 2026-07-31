@@ -52,9 +52,9 @@ export function MapPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar ubicación..."
-          aria-label="Buscar ubicación"
-          className="w-full rounded-full border border-white/10 bg-forest-900/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-bio-500"
+          placeholder="Buscar ubicacion..."
+          aria-label="Buscar ubicacion"
+          className="w-full rounded-full border border-white/10 bg-forest-900/70 py-2.5 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 transition focus:border-bio-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bio-500"
         />
       </label>
 
@@ -86,7 +86,7 @@ export function MapPage() {
 
       {visible.length === 0 && (
         <p className="py-10 text-center text-sm text-slate-400">
-          No hay avistamientos que coincidan con la búsqueda.
+          No hay avistamientos que coincidan con la busqueda.
         </p>
       )}
 
