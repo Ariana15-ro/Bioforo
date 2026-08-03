@@ -4,7 +4,6 @@ import { Heart, Leaf, MapPin, Search } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { Logo } from "@/components/common/Logo";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { supabase } from "@/lib/supabase";
@@ -225,8 +224,7 @@ export function FeedPage() {
 
   return (
     <div className="w-full space-y-4">
-      <header className="sticky top-0 z-10 -mx-4 flex items-center gap-3 bg-forest-950/85 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-        <Logo />
+      <header className="sticky top-0 z-10 -mx-4 flex items-center bg-forest-950/85 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
         <label className="relative flex-1">
           <Search
             size={18}
