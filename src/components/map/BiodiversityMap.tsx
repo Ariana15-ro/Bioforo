@@ -4,7 +4,6 @@ import { Crosshair } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 
-import { useSightingsStore } from "@/store/sightingsStore";
 import { usePostModal } from "@/components/modals/PostDetailModal";
 import type { Sighting } from "@/types";
 
@@ -30,9 +29,14 @@ function LocationController({
 
 function useClusters(sightings: Sighting[]) {
   return useMemo(() => {
+    const valid = sightings.filter(
+      (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude),
+    );
+    if (valid.length < 30) {
+      return valid.map((s) => [s]);
+    }
     const cells = new Map<string, Sighting[]>();
-    for (const s of sightings) {
-      if (!s.latitude && !s.longitude) continue;
+    for (const s of valid) {
       const key = `${Math.round(s.latitude / 0.5)}:${Math.round(s.longitude / 0.5)}`;
       const arr = cells.get(key) ?? [];
       arr.push(s);
@@ -49,21 +53,11 @@ export function BiodiversityMap({
   sightings?: Sighting[];
   className?: string;
 }) {
-  const storeSightings = useSightingsStore((s) => s.sightings);
-  const loadMore = useSightingsStore((s) => s.loadMore);
   const { openPost } = usePostModal();
   const mapRef = useRef<L.Map | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
-  const initializedRef = useRef(false);
 
-  const sightings = propSightings ?? storeSightings;
-
-  useEffect(() => {
-    if (propSightings === undefined && !initializedRef.current && sightings.length === 0) {
-      initializedRef.current = true;
-      loadMore();
-    }
-  }, [propSightings, sightings.length, loadMore]);
+  const sightings = propSightings ?? [];
 
   const clusters = useClusters(sightings);
 
@@ -91,8 +85,8 @@ export function BiodiversityMap({
 
       <MapContainer
         ref={mapRef}
-        center={[2.5, -73]}
-        zoom={5}
+        center={[2.573, -72.646]}
+        zoom={13.5}
         scrollWheelZoom
         className="h-full w-full bg-forest-800"
       >

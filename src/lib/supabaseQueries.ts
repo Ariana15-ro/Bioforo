@@ -15,8 +15,8 @@ export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, stri
     imageUrl: r.image_url ?? "",
     location: r.location ?? "",
     category: (r.category as Sighting["category"]) ?? "Fauna",
-    latitude: r.latitude ?? 0,
-    longitude: r.longitude ?? 0,
+    latitude: Number(r.latitude) || 0,
+    longitude: Number(r.longitude) || 0,
     createdAt: r.created_at,
     likes: r.likes_count ?? 0,
     comments: r.comments_count ?? 0,
@@ -25,7 +25,6 @@ export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, stri
 }
 
 export interface FetchSightingsOptions {
-  userId?: string;
   category?: string;
   search?: string;
   limit?: number;
@@ -33,7 +32,6 @@ export interface FetchSightingsOptions {
 }
 
 export async function fetchSightings({
-  userId,
   category,
   search,
   limit = 12,
@@ -45,7 +43,6 @@ export async function fetchSightings({
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (userId) query = query.eq("user_id", userId);
   if (category && category !== "Todas") query = query.eq("category", category);
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;

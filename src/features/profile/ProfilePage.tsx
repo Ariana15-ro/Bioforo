@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { TextField } from "@/components/ui/TextField";
-import { fetchProfile, updateProfile, fetchSightings } from "@/lib/supabaseQueries";
+import { fetchProfile, updateProfile } from "@/lib/supabaseQueries";
+import { fetchSightingsByUser } from "@/lib/profileQueries";
 import { useAuthStore } from "@/store/authStore";
 import type { Profile, Sighting } from "@/types";
 import toast from "react-hot-toast";
@@ -58,7 +59,7 @@ export function ProfilePage() {
     }
     let active = true;
     setLoadingGallery(true);
-    fetchSightings({ userId: rawUser.id })
+    fetchSightingsByUser(rawUser.id)
       .then((data) => active && setMySightings(data))
       .catch(() => active && setMySightings([]))
       .finally(() => active && setLoadingGallery(false));

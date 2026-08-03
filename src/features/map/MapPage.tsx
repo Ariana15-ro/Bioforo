@@ -16,10 +16,19 @@ const CATEGORIES = [
 
 export function MapPage() {
   const sightings = useSightingsStore((s) => s.sightings);
+  const loadMore = useSightingsStore((s) => s.loadMore);
+  const hasMore = useSightingsStore((s) => s.hasMore);
+  const loading = useSightingsStore((s) => s.loading);
 
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("Todas");
+
+  useEffect(() => {
+    if (hasMore && !loading) {
+      loadMore();
+    }
+  }, [hasMore, loading, loadMore]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(query), 300);
@@ -29,7 +38,7 @@ export function MapPage() {
   const visible: Sighting[] = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return sightings.filter((s) => {
-      const hasCoords = s.latitude !== 0 || s.longitude !== 0;
+      const hasCoords = Number.isFinite(s.latitude) && Number.isFinite(s.longitude);
       const matchesCategory =
         activeCategory === "Todas" || s.category === activeCategory;
       const matchesSearch =
