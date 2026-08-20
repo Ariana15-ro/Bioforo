@@ -1,136 +1,10 @@
 ﻿import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { supabase } from "@/lib/supabase";
-import { useAuthStore } from "@/store/authStore";
 import { useNotificationsStore } from "@/store/notificationsStore";
 import { usePostModal } from "@/components/modals/PostDetailModal";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import type { AppNotification } from "@/lib/supabaseQueries";
-
-function useNotificationsRealtime(userId: string | undefined) {
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const retryCountRef = useRef(0);
-  const MAX_RETRIES = 3;
-  const BASE_DELAY = 1000;
-
-  useEffect(() => {
-    if (!userId) {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-      retryCountRef.current = 0;
-      return;
-    }
-
-    let cancelled = false;
-
-    const subscribe = async () => {
-      if (cancelled) return;
-
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-
-      const channel = supabase.channel(`notifications-${userId}`);
-      channelRef.current = channel;
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("subscription timeout")), 8000);
-
-          channel
-            .on(
-              "postgres_changes",
-              { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-              async (payload) => {
-                const row = payload.new as {
-                  id: string;
-                  user_id: string;
-                  actor_id: string | null;
-                  type: "like" | "comment" | "nearby" | "follow";
-                  sighting_id: string | null;
-                  comment_text: string | null;
-                  read: boolean;
-                  created_at: string;
-                };
-
-                let actorName = "Alguien";
-                if (row.actor_id) {
-                  try {
-                    const { data } = await supabase
-                      .from("profiles")
-                      .select("full_name")
-                      .eq("id", row.actor_id)
-                      .single();
-                    const name = (data?.full_name as string | undefined)?.trim();
-                    if (name) actorName = name;
-                  } catch {
-                    // ignore
-                  }
-                }
-
-                const text =
-                  row.type === "like"
-                    ? `le dio me gusta a tu avistamiento`
-                    : row.type === "comment"
-                      ? `comentó: «${row.comment_text ?? ""}»`
-                      : row.type === "nearby"
-                        ? `Nuevo avistamiento cerca`
-                        : `empezó a seguirte`;
-
-                useNotificationsStore.getState().addNotification({
-                  id: row.id,
-                  type: row.type,
-                  userName: actorName,
-                  text,
-                  createdAt: row.created_at,
-                  read: row.read,
-                  sightingId: row.sighting_id ?? undefined,
-                });
-              },
-            )
-            .subscribe((status) => {
-              if (status === "SUBSCRIBED") {
-                clearTimeout(timeout);
-                retryCountRef.current = 0;
-                resolve();
-              } else if (status === "CHANNEL_ERROR") {
-                clearTimeout(timeout);
-                reject(new Error("channel_error"));
-              } else if (status === "TIMED_OUT") {
-                clearTimeout(timeout);
-                reject(new Error("timeout"));
-              }
-            });
-        });
-      } catch (err) {
-        if (cancelled) return;
-
-        if (retryCountRef.current < MAX_RETRIES) {
-          const delay = BASE_DELAY * Math.pow(2, retryCountRef.current);
-          retryCountRef.current += 1;
-          setTimeout(subscribe, delay);
-        } else {
-          // Silencioso después de agotar reintentos para no spamear consola
-          retryCountRef.current = MAX_RETRIES;
-        }
-      }
-    };
-
-    subscribe();
-
-    return () => {
-      cancelled = true;
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [userId]);
-}
 
 export function NotificationBell() {
   const notifications = useNotificationsStore((s) => s.notifications);
@@ -140,11 +14,8 @@ export function NotificationBell() {
   const loadNotifications = useNotificationsStore((s) => s.load);
   const { openPost } = usePostModal();
 
-  const userId = useAuthStore((s) => s.user?.id);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useNotificationsRealtime(userId);
 
   useEffect(() => {
     loadNotifications();

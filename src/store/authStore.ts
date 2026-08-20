@@ -9,6 +9,7 @@ export interface RegisteredUser {
   academicProgram: string;
   email: string;
   password: string;
+  avatarUrl?: string;
 }
 
 export type RegisterInput = Omit<RegisteredUser, "password"> & {
@@ -29,6 +30,7 @@ interface AuthState {
   register: (input: RegisterInput) => Promise<AuthResult>;
   login: (email: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  setCurrentUser: (user: RegisteredUser | null) => void;
 }
 
 function toProfile(user: User | null): RegisteredUser | null {
@@ -40,6 +42,7 @@ function toProfile(user: User | null): RegisteredUser | null {
     academicProgram: str(m.academic_program) || str(m.academicProgram),
     email: user.email ?? "",
     password: "",
+    avatarUrl: str(m.avatar_url) || undefined,
   };
 }
 
@@ -54,6 +57,7 @@ async function enrichWithProfile(user: User | null): Promise<RegisteredUser | nu
         fullName: p.fullName || base.fullName,
         academicProgram: p.academicProgram || base.academicProgram,
         email: p.email || base.email,
+        avatarUrl: p.avatarUrl || base.avatarUrl,
       };
     }
   } catch (err) {
@@ -138,5 +142,6 @@ export const useAuthStore = create<AuthState>()((set) => {
       await supabase.auth.signOut();
       set({ user: null, currentUser: null, isAuthenticated: false });
     },
+    setCurrentUser: (user) => set({ currentUser: user }),
   };
 });

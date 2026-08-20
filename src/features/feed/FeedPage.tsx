@@ -4,6 +4,7 @@ import { Heart, Leaf, MapPin, Search } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import { Avatar } from "@/components/common/Avatar";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { supabase } from "@/lib/supabase";
@@ -65,9 +66,12 @@ const SightingCard = memo(function SightingCard({
           <MapPin size={14} className="text-bio-400" />
           {sighting.location}
         </p>
-        <p className="text-xs text-slate-400">
-          {sighting.author.displayName} · {timeAgo(sighting.createdAt)}
-        </p>
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <Avatar name={sighting.author.displayName} src={sighting.author.avatarUrl} size={22} />
+          <span>
+            {sighting.author.displayName} · {timeAgo(sighting.createdAt)}
+          </span>
+        </div>
         <div className="mt-auto flex items-center gap-5 pt-2 text-slate-300">
           <button
             type="button"

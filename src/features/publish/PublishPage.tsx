@@ -160,7 +160,7 @@ export function PublishPage() {
           id: user.id,
           username: user.email?.split("@")[0] ?? "usuario",
           displayName:
-            (user.user_metadata?.full_name as string) || "Usuario BioForo",
+            (user.user_metadata?.full_name as string) || "Usuario",
         },
       };
       useSightingsStore.getState().prependSighting(optimistic);

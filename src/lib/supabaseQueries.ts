@@ -1,11 +1,15 @@
 ﻿import { supabase } from "@/lib/supabase";
 import type { Comment, Sighting, SightingRow, User } from "@/types";
 
-export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, string>): Sighting {
+type ProfileInfo = { full_name: string; avatar_url?: string };
+
+export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, ProfileInfo>): Sighting {
+  const profile = profilesMap?.[r.user_id ?? ""];
   const author: User = {
     id: r.user_id ?? "anon",
     username: "usuario",
-    displayName: profilesMap?.[r.user_id ?? ""] ?? "Usuario BioForo",
+    displayName: profile?.full_name ?? "Usuario",
+    avatarUrl: profile?.avatar_url,
   };
   return {
     id: r.id,
@@ -54,17 +58,20 @@ export async function fetchSightings({
   const rows = (data as SightingRow[] | null) ?? [];
 
   const userIds = [...new Set(rows.map((r) => r.user_id).filter((id): id is string => id !== null && id !== "anon"))];
-  let profilesMap: Record<string, string> = {};
+  let profilesMap: Record<string, ProfileInfo> = {};
   if (userIds.length > 0) {
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, avatar_url")
       .in("id", userIds);
     if (profilesData) {
       profilesMap = Object.fromEntries(
         profilesData.map((p: Record<string, unknown>) => [
           p.id as string,
-          (p.full_name as string) ?? "Usuario BioForo",
+          {
+            full_name: (p.full_name as string) ?? "Usuario",
+            avatar_url: (p.avatar_url as string) || undefined,
+          },
         ]),
       );
     }
@@ -103,15 +110,17 @@ export async function createSighting(input: {
   if (error) throw error;
 
   const row = data as SightingRow;
-  let displayName = "Usuario BioForo";
+  let displayName = "Usuario";
+  let avatarUrl: string | undefined;
   if (row.user_id && row.user_id !== "anon") {
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, avatar_url")
       .eq("id", row.user_id)
       .maybeSingle();
-    if (profileData?.full_name) {
-      displayName = profileData.full_name as string;
+    if (profileData) {
+      displayName = (profileData.full_name as string) || displayName;
+      avatarUrl = (profileData.avatar_url as string) || undefined;
     }
   }
 
@@ -119,6 +128,7 @@ export async function createSighting(input: {
     id: row.user_id ?? "anon",
     username: "usuario",
     displayName,
+    avatarUrl,
   };
 
   return {
@@ -150,30 +160,37 @@ export async function fetchComments(sightingId: string): Promise<Comment[]> {
   const rows = (data ?? []) as Record<string, unknown>[];
   const userIds = [...new Set(rows.map((r) => (r.user_id as string) ?? "anon"))];
 
-  let profilesMap: Record<string, string> = {};
+  let profilesMap: Record<string, ProfileInfo> = {};
   if (userIds.length > 0) {
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, avatar_url")
       .in("id", userIds.filter((id) => id !== "anon"));
     if (profilesData) {
       profilesMap = Object.fromEntries(
         profilesData.map((p: Record<string, unknown>) => [
           p.id as string,
-          (p.full_name as string) ?? "Usuario BioForo",
+          {
+            full_name: (p.full_name as string) ?? "Usuario",
+            avatar_url: (p.avatar_url as string) || undefined,
+          },
         ]),
       );
     }
   }
 
-  return rows.map((c: Record<string, unknown>) => ({
-    id: c.id as string,
-    sightingId: c.sighting_id as string,
-    authorId: (c.user_id as string) ?? "anon",
-    authorName: profilesMap[(c.user_id as string) ?? "anon"] ?? "Usuario BioForo",
-    text: c.comment as string,
-    createdAt: c.created_at as string,
-  }));
+  return rows.map((c: Record<string, unknown>) => {
+    const uid = (c.user_id as string) ?? "anon";
+    const profile = profilesMap[uid];
+    return {
+      id: c.id as string,
+      sightingId: c.sighting_id as string,
+      authorId: uid,
+      authorName: profile?.full_name ?? "Usuario",
+      text: c.comment as string,
+      createdAt: c.created_at as string,
+    };
+  });
 }
 
 export async function addComment(
@@ -212,11 +229,25 @@ export async function addComment(
     }
   }
 
+  let authorName = "Usuario";
+  try {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
+    if (profileData?.full_name) {
+      authorName = profileData.full_name as string;
+    }
+  } catch {
+    // ignore
+  }
+
   return {
     id: data.id as string,
     sightingId: data.sighting_id as string,
     authorId: (data.user_id as string) ?? "anon",
-    authorName: "Usuario BioForo",
+    authorName,
     text: data.comment as string,
     createdAt: data.created_at as string,
     commentsCount,
@@ -299,7 +330,7 @@ export async function fetchSightingById(id: string): Promise<Sighting | null> {
   const author: User = {
     id: row.user_id ?? "anon",
     username: "usuario",
-    displayName: "Usuario BioForo",
+    displayName: "Usuario",
   };
 
   if (row.user_id && row.user_id !== "anon") {
@@ -316,6 +347,66 @@ export async function fetchSightingById(id: string): Promise<Sighting | null> {
       author.avatarUrl = (profileData.avatar_url as string) || undefined;
     } else {
       console.warn("[fetchSightingById] no profile row for", row.user_id);
+    }
+  }
+
+  return {
+    id: row.id,
+    species: row.scientific_name ?? "",
+    commonName: row.species_name,
+    description: row.description ?? "",
+    imageUrl: row.image_url ?? "",
+    location: row.location ?? "",
+    category: (row.category as Sighting["category"]) ?? "Fauna",
+    latitude: row.latitude ?? 0,
+    longitude: row.longitude ?? 0,
+    createdAt: row.created_at,
+    likes: row.likes_count ?? 0,
+    comments: row.comments_count ?? 0,
+    author,
+  };
+}
+
+export async function updateSighting(id: string, input: {
+  species_name: string;
+  scientific_name?: string | null;
+  category: string;
+  description: string;
+  location: string;
+}): Promise<Sighting | null> {
+  const { data, error } = await supabase
+    .from("sightings")
+    .update({
+      species_name: input.species_name,
+      scientific_name: input.scientific_name?.trim() || null,
+      category: input.category,
+      description: input.description,
+      location: input.location,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const row = data as SightingRow;
+  const author: User = {
+    id: row.user_id ?? "anon",
+    username: "usuario",
+    displayName: "Usuario",
+  };
+
+  if (row.user_id && row.user_id !== "anon") {
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("id", row.user_id)
+      .maybeSingle();
+
+    if (profileData) {
+      author.displayName = (profileData.full_name as string) || author.displayName;
+      author.avatarUrl = (profileData.avatar_url as string) || undefined;
     }
   }
 

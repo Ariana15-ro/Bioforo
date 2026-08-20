@@ -1,26 +1,36 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { Heart, MapPin, MessageCircle, Send, Trash2 } from "lucide-react";
+import { Heart, MapPin, MessageCircle, Pencil, Send, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { Avatar } from "@/components/common/Avatar";
 import { Modal } from "@/components/common/Modal";
-import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
+import { TextField } from "@/components/ui/TextField";
+import { supabase } from "@/lib/supabase";
 import {
   addComment,
   deleteSighting,
   fetchComments,
+  fetchProfile,
+  fetchSightingById,
   fetchUserLikes,
   toggleLike,
-  fetchSightingById,
-  fetchProfile,
+  updateSighting,
 } from "@/lib/supabaseQueries";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
-import type { Comment } from "@/types";
+import type { Category, Comment } from "@/types";
+
+const CATEGORIES: Category[] = [
+  "Flora",
+  "Fauna",
+  "Aves",
+  "Insectos",
+  "Ecosistemas",
+];
 
 const CommentItem = memo(function CommentItem({ comment }: { comment: Comment }) {
   return (
@@ -108,7 +118,7 @@ function PostDetailModalBase() {
   const selectedId = useSightingsStore((s) => s.selectedId);
   const closePost = useSightingsStore((s) => s.closePost);
   const sightings = useSightingsStore((s) => s.sightings);
-  const updateSighting = useSightingsStore((s) => s.updateSighting);
+  const storeUpdateSighting = useSightingsStore((s) => s.updateSighting);
   const removeSighting = useSightingsStore((s) => s.removeSighting);
   const userId = useAuthStore((s) => s.user?.id);
 
@@ -121,6 +131,15 @@ function PostDetailModalBase() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [authorAvatarUrl, setAuthorAvatarUrl] = useState<string | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    commonName: "",
+    scientificName: "",
+    category: "",
+    description: "",
+    location: "",
+  });
   const panelRef = useRef<HTMLDivElement | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -131,6 +150,7 @@ function PostDetailModalBase() {
       setComments([]);
       setConfirmingDelete(false);
       setAuthorAvatarUrl(undefined);
+      setEditing(false);
       return;
     }
     let active = true;
@@ -174,7 +194,7 @@ function PostDetailModalBase() {
         { event: "INSERT", schema: "public", table: "likes", filter: `sighting_id=eq.${sightingId}` },
         () => {
           fetchSightingById(sightingId).then((fresh) => {
-            if (fresh) updateSighting(fresh);
+            if (fresh) storeUpdateSighting(fresh);
             if (userId) {
               supabase
                 .from("likes")
@@ -207,7 +227,7 @@ function PostDetailModalBase() {
         channelRef.current = null;
       }
     };
-  }, [sightingId, userId, updateSighting]);
+  }, [sightingId, userId, storeUpdateSighting]);
 
   useEffect(() => {
     if (!open) return;
@@ -250,12 +270,12 @@ function PostDetailModalBase() {
       const result = await toggleLike(sightingId, userId);
       setLiked(result.liked);
       const fresh = await fetchSightingById(sightingId);
-      if (fresh) updateSighting(fresh);
+      if (fresh) storeUpdateSighting(fresh);
     } catch {
       setLiked(prevLiked);
       toast.error("No se pudo actualizar el me gusta.");
     }
-  }, [sightingId, userId, liked, updateSighting]);
+  }, [sightingId, userId, liked, storeUpdateSighting]);
 
   const handleAddComment = useCallback(
     (text: string) => {
@@ -278,7 +298,7 @@ function PostDetailModalBase() {
             prev.map((c) => (c.id === optimistic.id ? created : c)),
           );
           fetchSightingById(sightingId).then((fresh) => {
-            if (fresh) updateSighting(fresh);
+            if (fresh) storeUpdateSighting(fresh);
           });
         })
         .catch(() => {
@@ -286,10 +306,51 @@ function PostDetailModalBase() {
           toast.error("No se pudo enviar el comentario.");
         });
     },
-    [sightingId, userId, updateSighting],
+    [sightingId, userId, storeUpdateSighting],
   );
 
   const isOwner = Boolean(userId && sighting && sighting.author.id === userId);
+
+  const startEditing = useCallback(() => {
+    if (!sighting) return;
+    setEditForm({
+      commonName: sighting.commonName,
+      scientificName: sighting.species,
+      category: sighting.category,
+      description: sighting.description,
+      location: sighting.location,
+    });
+    setEditing(true);
+  }, [sighting]);
+
+  const cancelEditing = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!sightingId) return;
+    setSaving(true);
+    try {
+      const updated = await updateSighting(sightingId, {
+        species_name: editForm.commonName,
+        scientific_name: editForm.scientificName,
+        category: editForm.category,
+        description: editForm.description,
+        location: editForm.location,
+      });
+      if (updated) {
+        storeUpdateSighting(updated);
+        setEditing(false);
+        toast.success("Avistamiento actualizado.");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo actualizar el avistamiento.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [sightingId, editForm, storeUpdateSighting]);
 
   const handleDelete = useCallback(async () => {
     if (!sightingId) return;
@@ -319,84 +380,174 @@ function PostDetailModalBase() {
         aria-labelledby="post-detail-title"
         className="flex max-h-[90vh] flex-col overflow-hidden"
       >
-        <SpeciesImage
-          src={sighting.imageUrl}
-          alt={sighting.commonName}
-          className="h-64 w-full shrink-0"
-        />
-        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-start justify-between gap-3">
+        {editing ? (
+          <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
-                  {sighting.commonName}
+                  Editar avistamiento
                 </h2>
-                {isOwner && (
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setConfirmingDelete(true)}
-                    aria-label="Eliminar publicación"
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-500/15 hover:text-red-400"
+                    onClick={cancelEditing}
+                    disabled={saving}
+                    className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/5"
                   >
-                    <Trash2 size={18} />
+                    Cancelar
                   </button>
-                )}
-              </div>
-              {sighting.species && (
-                <p className="text-xs italic text-slate-400">{sighting.species}</p>
-              )}
-              <span className="mt-1 inline-block rounded-full bg-bio-500/15 px-2.5 py-0.5 text-xs font-medium text-bio-300">
-                {sighting.category}
-              </span>
-            </div>
-
-            <p className="flex items-center gap-1 text-sm text-slate-300">
-              <MapPin size={15} className="text-bio-400" />
-              {sighting.location}
-            </p>
-
-            <p className="text-sm text-slate-200">{sighting.description}</p>
-
-            <div className="flex items-center justify-between border-t border-white/5 pt-3">
-              <div className="flex items-center gap-2">
-                <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
-                <div className="text-xs">
-                  <p className="font-medium text-slate-100">
-                    {sighting.author.displayName}
-                  </p>
-                  <p className="text-slate-400">
-                    {formatDistanceToNow(new Date(sighting.createdAt), {
-                      addSuffix: true,
-                      locale: es,
-                    })}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    disabled={saving}
+                    className="rounded-full bg-bio-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-bio-400 disabled:opacity-50"
+                  >
+                    {saving ? "Guardando..." : "Guardar"}
+                  </button>
                 </div>
               </div>
-              <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
-            </div>
 
-            <div className="border-t border-white/5 pt-3">
-              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-                <MessageCircle size={16} /> Comentarios
-              </h3>
-              {commentsLoading ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-4/5" />
+              <TextField
+                label="Nombre de la especie"
+                value={editForm.commonName}
+                onChange={(e) => setEditForm((f) => ({ ...f, commonName: e.target.value }))}
+              />
+              <TextField
+                label="Nombre científico (opcional)"
+                value={editForm.scientificName}
+                onChange={(e) => setEditForm((f) => ({ ...f, scientificName: e.target.value }))}
+              />
+              <div>
+                <span className="mb-1 block text-sm font-medium text-slate-200">Categoría</span>
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORIES.map((cat) => {
+                    const active = editForm.category === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setEditForm((f) => ({ ...f, category: cat }))}
+                        className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                          active
+                            ? "border-bio-500 bg-bio-500 text-white"
+                            : "border-white/10 text-slate-300 hover:border-white/20"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : comments.length === 0 ? (
-                <p className="text-xs text-slate-400">Sé el primero en comentar.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {comments.map((c) => (
-                    <CommentItem key={c.id} comment={c} />
-                  ))}
-                </ul>
-              )}
-              <CommentInput onSend={handleAddComment} />
+              </div>
+              <label className="block text-sm text-slate-200">
+                <span className="mb-1 block font-medium">Descripción</span>
+                <textarea
+                  rows={4}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Comportamiento, características, hábitat…"
+                  className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500"
+                />
+              </label>
+              <TextField
+                label="Nombre del lugar"
+                value={editForm.location}
+                onChange={(e) => setEditForm((f) => ({ ...f, location: e.target.value }))}
+              />
             </div>
           </div>
-        </div>
+        ) : (
+          <>
+            <SpeciesImage
+              src={sighting.imageUrl}
+              alt={sighting.commonName}
+              className="h-64 w-full shrink-0"
+            />
+            <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
+                      {sighting.commonName}
+                    </h2>
+                    {isOwner && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={startEditing}
+                          aria-label="Editar publicación"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-bio-500/15 hover:text-bio-300"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDelete(true)}
+                          aria-label="Eliminar publicación"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-500/15 hover:text-red-400"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {sighting.species && (
+                    <p className="text-xs italic text-slate-400">{sighting.species}</p>
+                  )}
+                  <span className="mt-1 inline-block rounded-full bg-bio-500/15 px-2.5 py-0.5 text-xs font-medium text-bio-300">
+                    {sighting.category}
+                  </span>
+                </div>
+
+                <p className="flex items-center gap-1 text-sm text-slate-300">
+                  <MapPin size={15} className="text-bio-400" />
+                  {sighting.location}
+                </p>
+
+                <p className="text-sm text-slate-200">{sighting.description}</p>
+
+                <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
+                    <div className="text-xs">
+                      <p className="font-medium text-slate-100">
+                        {sighting.author.displayName}
+                      </p>
+                      <p className="text-slate-400">
+                        {formatDistanceToNow(new Date(sighting.createdAt), {
+                          addSuffix: true,
+                          locale: es,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
+                </div>
+
+                <div className="border-t border-white/5 pt-3">
+                  <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                    <MessageCircle size={16} /> Comentarios
+                  </h3>
+                  {commentsLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-4/5" />
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <p className="text-xs text-slate-400">Sé el primero en comentar.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {comments.map((c) => (
+                        <CommentItem key={c.id} comment={c} />
+                      ))}
+                    </ul>
+                  )}
+                  <CommentInput onSend={handleAddComment} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <Modal open={confirmingDelete} onClose={() => setConfirmingDelete(false)}>
           <div
