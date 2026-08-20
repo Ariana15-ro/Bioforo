@@ -8,6 +8,7 @@
 --  4) Mantiene compatibilidad con triggers y contadores existentes.
 -- ============================================================
 
+-- ============================================================
 -- 1) Habilitar RLS (idempotente)
 -- ============================================================
 alter table public.sightings enable row level security;
