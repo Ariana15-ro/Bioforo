@@ -1,10 +1,12 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { Heart, Leaf, MapPin, Search } from "lucide-react";
+import { Heart, Leaf, MapPin, Search, Share } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Avatar } from "@/components/common/Avatar";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +18,7 @@ import {
 } from "@/lib/supabaseQueries";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
+import { useShareSighting } from "@/hooks/useShareSighting";
 import type { Sighting } from "@/types";
 
 const CATEGORIES = [
@@ -37,13 +40,35 @@ const SightingCard = memo(function SightingCard({
   index,
   onOpen,
   onToggleLike,
+  onNavigateToProfile,
 }: {
   sighting: Sighting;
   liked: boolean;
   index: number;
   onOpen: (id: string) => void;
   onToggleLike: (id: string) => void;
+  onNavigateToProfile: (userId: string) => void;
 }) {
+  const authorClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNavigateToProfile(sighting.author.id);
+  };
+
+  const { handleShare } = useShareSighting();
+
+  const handleCardShare = useCallback(async () => {
+    const result = await handleShare(sighting.id, sighting.commonName, sighting.location);
+    if (result.ok) {
+      const label =
+        result.method === "native"
+          ? "Compartido"
+          : "Enlace copiado al portapapeles";
+      toast.success(label);
+    } else {
+      toast.error("No se pudo compartir el avistamiento.");
+    }
+  }, [sighting, handleShare]);
+
   return (
     <article
       role="button"
@@ -67,28 +92,47 @@ const SightingCard = memo(function SightingCard({
           {sighting.location}
         </p>
         <div className="flex items-center gap-2 text-xs text-slate-400">
-          <Avatar name={sighting.author.displayName} src={sighting.author.avatarUrl} size={22} />
-          <span>
-            {sighting.author.displayName} · {timeAgo(sighting.createdAt)}
-          </span>
-        </div>
-        <div className="mt-auto flex items-center gap-5 pt-2 text-slate-300">
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLike(sighting.id);
-            }}
-            aria-pressed={liked}
-            aria-label={liked ? "Quitar me gusta" : "Dar me gusta"}
-            className="flex items-center gap-1.5 text-sm text-bio-400 transition hover:text-bio-300 active:scale-95"
+            onClick={authorClick}
+            className="flex items-center gap-2 rounded-full transition hover:bg-white/5"
           >
-            <Heart
-              size={18}
-              className={liked ? "animate-pop fill-bio-400 text-bio-400" : ""}
-            />
-            {sighting.likes}
+            <Avatar name={sighting.author.displayName} src={sighting.author.avatarUrl} size={22} />
+            <span className="text-left">
+              {sighting.author.displayName} · {timeAgo(sighting.createdAt)}
+            </span>
           </button>
+        </div>
+        <div className="mt-auto flex items-center justify-between pt-2 text-slate-300">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleLike(sighting.id);
+              }}
+              aria-pressed={liked}
+              aria-label={liked ? "Quitar me gusta" : "Dar me gusta"}
+              className="flex items-center gap-1.5 text-sm text-bio-400 transition hover:text-bio-300 active:scale-95"
+            >
+              <Heart
+                size={18}
+                className={liked ? "animate-pop fill-bio-400 text-bio-400" : ""}
+              />
+              {sighting.likes}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCardShare();
+              }}
+              aria-label="Compartir avistamiento"
+              className="text-slate-400 transition hover:text-bio-400"
+            >
+              <Share size={18} />
+            </button>
+          </div>
           <span className="flex items-center gap-1.5 text-sm text-slate-400">
             {sighting.comments} comentarios
           </span>
@@ -99,6 +143,7 @@ const SightingCard = memo(function SightingCard({
 });
 
 export function FeedPage() {
+  const navigate = useNavigate();
   const sightings = useSightingsStore((s) => s.sightings);
   const setSightings = useSightingsStore((s) => s.setSightings);
   const loadMore = useSightingsStore((s) => s.loadMore);
@@ -111,9 +156,35 @@ export function FeedPage() {
   const [activeCategory, setActiveCategory] = useState<string>("Todas");
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const userId = useAuthStore((s) => s.user?.id);
+
+  const navigateToProfile = useCallback((authorId: string) => {
+    navigate(`/profile/${authorId}`);
+  }, [navigate]);
+
+  const loadFeed = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const data = await fetchSightings({
+        category: activeCategory,
+        search: searchTerm,
+      });
+      setSightings(data);
+    } catch (err) {
+      setError(true);
+      toast.error(err instanceof Error ? err.message : "Error al cargar el feed.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeCategory, searchTerm, setSightings]);
+
+  useEffect(() => {
+    loadFeed();
+  }, [loadFeed]);
 
   useEffect(() => {
     if (!userId) return;
@@ -125,29 +196,6 @@ export function FeedPage() {
       })
       .catch(() => {});
   }, [userId]);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const data = await fetchSightings({
-          category: activeCategory,
-          search: searchTerm,
-        });
-        if (active) setSightings(data);
-      } catch (err) {
-        if (active) {
-          toast.error(err instanceof Error ? err.message : "Error al cargar.");
-          setSightings([]);
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [activeCategory, searchTerm, setSightings]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(query), 300);
@@ -277,6 +325,13 @@ export function FeedPage() {
               </div>
             ))}
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+            <p className="text-sm text-red-300">No se pudo cargar el feed.</p>
+            <Button variant="primary" onClick={loadFeed} className="mt-3">
+              Reintentar
+            </Button>
+          </div>
         ) : sightings.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sightings.map((s, idx) => (
@@ -287,18 +342,40 @@ export function FeedPage() {
                 index={idx}
                 onOpen={openPost}
                 onToggleLike={handleToggleLike}
+                onNavigateToProfile={navigateToProfile}
               />
             ))}
           </div>
+        ) : searchTerm || activeCategory !== "Todas" ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-forest-900/40 p-6 text-center">
+            <Leaf size={48} className="mb-3 text-bio-500" aria-hidden="true" />
+            <h3 className="text-base font-semibold text-slate-100">
+              Sin resultados
+            </h3>
+            <p className="mt-1 max-w-sm text-sm text-slate-400">
+              No encontramos avistamientos con esos filtros. Prueba cambiando la búsqueda o la categoría.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button variant="primary" onClick={() => { setSearchTerm(""); setActiveCategory("Todas"); }}>
+                Limpiar filtros
+              </Button>
+              <Button variant="ghost" onClick={() => navigate("/publish")}>
+                Publicar
+              </Button>
+            </div>
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Leaf size={64} className="mb-4 text-bio-500" aria-hidden="true" />
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-forest-900/40 p-6 text-center">
+            <Leaf size={48} className="mb-3 text-bio-500" aria-hidden="true" />
             <h3 className="text-base font-semibold text-slate-100">
               Aún no hay avistamientos
             </h3>
             <p className="mt-1 max-w-sm text-sm text-slate-400">
               Cambia los filtros o publica tu primer registro de biodiversidad.
             </p>
+            <Button variant="primary" onClick={() => navigate("/publish")} className="mt-3">
+              Publicar avistamiento
+            </Button>
           </div>
         )}
       </div>

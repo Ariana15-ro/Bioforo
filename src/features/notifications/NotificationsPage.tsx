@@ -1,9 +1,10 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { Heart, MapPin, MessageCircle, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useCallback, useState } from "react";
 
 import { Avatar } from "@/components/common/Avatar";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/Skeleton";
 import type { NotificationType } from "@/store/notificationsStore";
 import { useNotificationsStore } from "@/store/notificationsStore";
@@ -19,12 +20,19 @@ export function NotificationsPage() {
   const notifications = useNotificationsStore((s) => s.notifications);
   const unread = useNotificationsStore((s) => s.unreadCount);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
+  const loadNotifications = useNotificationsStore((s) => s.load);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const retry = useCallback(() => {
+    setError(false);
+    setLoading(true);
+    loadNotifications().finally(() => setLoading(false));
+  }, [loadNotifications]);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(t);
-  }, []);
+    retry();
+  }, [retry]);
 
   useEffect(() => {
     if (unread > 0) markAllRead();
@@ -56,6 +64,13 @@ export function NotificationsPage() {
             </li>
           ))}
         </ul>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center">
+          <p className="text-sm text-red-300">No se pudieron cargar las notificaciones.</p>
+          <Button variant="primary" onClick={retry} className="mt-3">
+            Reintentar
+          </Button>
+        </div>
       ) : notifications.length > 0 ? (
         <ul className="space-y-2">
           {notifications.map((n, idx) => {

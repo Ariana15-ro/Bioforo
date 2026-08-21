@@ -1,7 +1,8 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { Heart, MapPin, MessageCircle, Pencil, Send, Trash2 } from "lucide-react";
+import { Heart, MapPin, MessageCircle, Pencil, Send, Share, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { Avatar } from "@/components/common/Avatar";
@@ -10,6 +11,7 @@ import { Skeleton } from "@/components/common/Skeleton";
 import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { TextField } from "@/components/ui/TextField";
 import { supabase } from "@/lib/supabase";
+import { useShareSighting } from "@/hooks/useShareSighting";
 import {
   addComment,
   deleteSighting,
@@ -121,6 +123,8 @@ function PostDetailModalBase() {
   const storeUpdateSighting = useSightingsStore((s) => s.updateSighting);
   const removeSighting = useSightingsStore((s) => s.removeSighting);
   const userId = useAuthStore((s) => s.user?.id);
+  const navigate = useNavigate();
+  const { handleShare } = useShareSighting();
 
   const sighting = sightings.find((s) => s.id === selectedId) ?? null;
   const open = Boolean(selectedId && sighting);
@@ -144,6 +148,10 @@ function PostDetailModalBase() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const sightingId = sighting?.id ?? null;
+
+  const navigateToProfile = useCallback((authorId: string) => {
+    navigate(`/profile/${authorId}`);
+  }, [navigate]);
 
   useEffect(() => {
     if (!sighting) {
@@ -508,20 +516,53 @@ function PostDetailModalBase() {
 
                 <div className="flex items-center justify-between border-t border-white/5 pt-3">
                   <div className="flex items-center gap-2">
-                    <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
-                    <div className="text-xs">
-                      <p className="font-medium text-slate-100">
-                        {sighting.author.displayName}
-                      </p>
-                      <p className="text-slate-400">
-                        {formatDistanceToNow(new Date(sighting.createdAt), {
-                          addSuffix: true,
-                          locale: es,
-                        })}
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigateToProfile(sighting.author.id);
+                      }}
+                      className="flex items-center gap-2 rounded-full transition hover:bg-white/5"
+                    >
+                      <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
+                      <div className="text-left text-xs">
+                        <p className="font-medium text-slate-100">
+                          {sighting.author.displayName}
+                        </p>
+                        <p className="text-slate-400">
+                          {formatDistanceToNow(new Date(sighting.createdAt), {
+                            addSuffix: true,
+                            locale: es,
+                          })}
+                        </p>
+                      </div>
+                    </button>
                   </div>
-                  <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!sighting || !sightingId) return;
+                        handleShare(sighting.id, sighting.commonName, sighting.location).then((result) => {
+                          if (result.ok) {
+                            const label =
+                              result.method === "native"
+                                ? "Compartido"
+                                : "Enlace copiado al portapapeles";
+                            toast.success(label);
+                          } else {
+                            toast.error("No se pudo compartir el avistamiento.");
+                          }
+                        });
+                      }}
+                      aria-label="Compartir avistamiento"
+                      className="text-slate-300 transition hover:text-bio-400"
+                    >
+                      <Share size={18} />
+                    </button>
+                    <LikeButton liked={liked} count={sighting.likes} onToggle={handleToggleLike} />
+                  </div>
                 </div>
 
                 <div className="border-t border-white/5 pt-3">

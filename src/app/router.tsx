@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, useParams } from "react-router-dom";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Spinner } from "@/components/common/Spinner";
@@ -23,6 +23,9 @@ const NotificationsPage = lazy(() =>
 const ProfilePage = lazy(() =>
   import("@/features/profile/ProfilePage").then((m) => ({ default: m.ProfilePage })),
 );
+const PublicProfilePage = lazy(() =>
+  import("@/features/profile/PublicProfilePage").then((m) => ({ default: m.PublicProfilePage })),
+);
 
 const withSuspense = (node: React.ReactNode) => (
   <Suspense fallback={<div className="grid place-items-center py-20"><Spinner className="h-8 w-8" /></div>}>
@@ -42,6 +45,15 @@ function ProtectedRoute() {
   if (loading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Outlet />;
+}
+
+function ProfileRedirect() {
+  const { userId } = useParams<{ userId: string }>();
+  const authUserId = useAuthStore((s) => s.user?.id);
+  if (authUserId && userId && authUserId === userId) {
+    return <Navigate to="/profile" replace />;
+  }
+  return <PublicProfilePage />;
 }
 
 export const router = createBrowserRouter([
@@ -68,6 +80,7 @@ export const router = createBrowserRouter([
           { path: "publish", element: withSuspense(<PublishPage />) }, // Publicar
           { path: "notifications", element: withSuspense(<NotificationsPage />) }, // Notificaciones
           { path: "profile", element: withSuspense(<ProfilePage />) }, // Perfil
+          { path: "profile/:userId", element: <ProfileRedirect /> }, // Perfil público
         ],
       },
     ],

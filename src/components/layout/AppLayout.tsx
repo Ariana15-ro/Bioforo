@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PostDetailModal } from "@/components/modals/PostDetailModal";
 import { NotificationsRealtimeProvider } from "@/components/notifications/NotificationsRealtimeProvider";
+import { usePostDeepLink } from "@/hooks/usePostDeepLink";
 
 /**
  * Shell for the authenticated app area.
@@ -13,6 +14,8 @@ import { NotificationsRealtimeProvider } from "@/components/notifications/Notifi
  * - Desktop (md+): left sidebar + content that fills the remaining width.
  */
 export function AppLayout() {
+  usePostDeepLink();
+
   return (
     <NotificationsRealtimeProvider>
       <div className="flex min-h-screen w-full">
