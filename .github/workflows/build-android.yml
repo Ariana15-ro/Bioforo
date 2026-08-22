@@ -20,13 +20,21 @@ jobs:
         run: npm ci
 
       - name: Build web assets
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Install Capacitor CLI deps
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets --no-save
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android --no-save
 
       - name: Sync Capacitor Android
         run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Make gradlew executable
         working-directory: android
