@@ -83,7 +83,8 @@ export function PublishPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const galleryRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -212,19 +213,26 @@ export function PublishPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 p-4">
-                <Button type="button" variant="ghost" onClick={() => fileRef.current?.click()} className="hover:border-bio-500/40">
+                <Button type="button" variant="ghost" onClick={() => cameraRef.current?.click()} className="hover:border-bio-500/40">
                   <Camera size={18} /> Tomar foto
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => fileRef.current?.click()} className="hover:border-bio-500/40">
+                <Button type="button" variant="ghost" onClick={() => galleryRef.current?.click()} className="hover:border-bio-500/40">
                   <ImageIcon size={18} /> Galería
                 </Button>
               </div>
             )}
             <input
-              ref={fileRef}
+              ref={cameraRef}
               type="file"
               accept="image/*"
               capture="environment"
+              className="hidden"
+              onChange={onFile}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
               className="hidden"
               onChange={onFile}
             />

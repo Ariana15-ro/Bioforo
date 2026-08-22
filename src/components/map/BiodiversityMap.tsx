@@ -1,5 +1,5 @@
-﻿import * as L from "leaflet";
-import "leaflet";
+﻿// @ts-ignore
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
