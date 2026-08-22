@@ -51,7 +51,7 @@ export function MapPage() {
   }, [sightings, searchTerm, activeCategory]);
 
   return (
-    <div className="w-full max-w-[428px] mx-auto space-y-3 md:mx-0 md:max-w-none" aria-live="polite">
+    <div className="w-full space-y-3" aria-live="polite">
       <label className="animate-fade-up relative block">
         <Search
           size={18}

@@ -12,7 +12,7 @@ export function BottomNav() {
   const unread = useNotificationsStore((s) => s.unreadCount);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md items-center justify-around border-t border-white/10 bg-forest-950/95 px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.35)] backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 flex w-full items-center justify-around border-t border-white/10 bg-forest-950/95 px-3 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-6px_20px_rgba(0,0,0,0.35)] backdrop-blur md:hidden">
       {TABS.map(({ to, label, icon: Icon, end, center }) => {
         if (center) {
           return (

@@ -177,7 +177,7 @@ export function PublishPage() {
   const busy = isSubmitting || uploading;
 
   return (
-    <div className="w-full max-w-[428px] mx-auto space-y-4 md:max-w-2xl" aria-live="polite">
+    <div className="w-full space-y-4 md:max-w-2xl" aria-live="polite">
       <div className="animate-fade-up space-y-4">
         <h1 className="text-2xl font-bold text-slate-50">Publicar avistamiento</h1>
 

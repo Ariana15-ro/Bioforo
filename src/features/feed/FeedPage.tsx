@@ -276,7 +276,7 @@ export function FeedPage() {
 
   return (
     <div className="w-full space-y-4">
-      <header className="sticky top-0 z-10 -mx-4 flex items-center bg-forest-950/85 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
+      <header className="sticky top-0 z-10 flex items-center bg-forest-950/85 px-4 py-3 backdrop-blur md:px-8">
         <label className="relative flex-1">
           <Search
             size={18}
@@ -293,7 +293,7 @@ export function FeedPage() {
         </label>
       </header>
 
-      <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:-mx-8 md:px-8">
+      <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 md:px-8">
         {CATEGORIES.map((cat) => {
           const active = cat === activeCategory;
           return (

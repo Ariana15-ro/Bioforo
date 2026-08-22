@@ -39,7 +39,7 @@ export function NotificationsPage() {
   }, [unread, markAllRead]);
 
   return (
-    <div className="w-full max-w-[428px] mx-auto space-y-4 md:mx-0 md:max-w-none" aria-live="polite">
+    <div className="w-full space-y-4 md:mx-0 md:max-w-none" aria-live="polite">
       <header className="animate-fade-up flex items-center gap-2">
         <h1 className="text-2xl font-bold text-slate-50">Notificaciones</h1>
         {unread > 0 && (
