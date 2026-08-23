@@ -92,7 +92,7 @@ function MarkerClusterLayer({
       .filter((s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude))
       .map((s) => {
         const marker = L.marker([s.latitude, s.longitude], { icon: PIN_ICON });
-        const image = s.imageUrl ? `<img src="${s.imageUrl}" alt="" className="h-24 w-full rounded-lg object-cover" />` : null;
+        const image = s.imageUrl ? `<img src="${s.imageUrl}" alt="" className="w-full max-h-32 object-contain rounded-lg bg-forest-800" />` : null;
         marker.bindPopup(
           `<div style="min-width:160px;color:#0e1710;">
             ${image ?? ""}

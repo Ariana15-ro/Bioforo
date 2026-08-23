@@ -10,6 +10,7 @@ import { TextField } from "@/components/ui/TextField";
 import { fetchProfile, updateProfile } from "@/lib/supabaseQueries";
 import { fetchSightingsByUser } from "@/lib/profileQueries";
 import { computeBadges } from "@/lib/badgeUtils";
+import { processImage } from "@/lib/imageUtils";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
@@ -85,29 +86,28 @@ export function ProfilePage() {
   const update = (patch: Partial<Profile>) =>
     setProfile((prev) => (prev ? { ...prev, ...patch } : prev));
 
-  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Selecciona un archivo de imagen válido.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      toast.error("La imagen no debe superar 3 MB.");
-      return;
+    try {
+      const processed = await processImage(file, { maxWidth: 512, maxHeight: 512, quality: 0.8, mimeType: "image/jpeg" });
+      setAvatarFile(processed);
+      setAvatarPreview(URL.createObjectURL(processed));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "No se pudo procesar la imagen.";
+      toast.error(msg);
     }
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
   };
 
   const uploadAvatar = async (): Promise<string | null> => {
     if (!avatarFile || !rawUser?.id) return null;
     setUploadingAvatar(true);
     try {
-      const ext = avatarFile.name.includes(".")
-        ? avatarFile.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5)
-        : "jpg";
-      const path = `public/avatars/${rawUser.id}.${ext || "jpg"}`;
+      const path = `public/avatars/${rawUser.id}.jpg`;
 
       const { error } = await supabase.storage
         .from("sightings")
@@ -291,7 +291,7 @@ export function ProfilePage() {
                   value={profile?.bio ?? ""}
                   onChange={(e) => update({ bio: e.target.value })}
                   rows={3}
-                  className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500"
+                  className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500 break-words"
                   placeholder="Cuéntanos sobre ti"
                 />
               </label>

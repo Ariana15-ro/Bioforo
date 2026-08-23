@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { Camera, Compass, Leaf } from "lucide-react";
+import { Camera, Compass, Leaf, MapPin } from "lucide-react";
 import { Avatar } from "@/components/common/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/Skeleton";
@@ -96,11 +96,11 @@ export function PublicProfilePage() {
           <Avatar name={displayName} src={profile.avatarUrl} size={72} className="ring-2 ring-bio-500" />
           <div className="min-w-0">
             <h1 className="truncate text-xl font-bold text-slate-50">{displayName}</h1>
-            <p className="truncate text-sm text-bio-300">{profile.academicProgram || "Programa acadÃ©mico no especificado"}</p>
+            <p className="truncate text-sm text-bio-300">{profile.academicProgram || "Programa académico no especificado"}</p>
             {profile.email && <p className="truncate text-xs text-slate-400">{profile.email}</p>}
             {profile.location && (
-              <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                <span className="text-bio-400">ðŸ“</span>
+              <p className="mt-1 flex items-center gap-1 break-words text-xs text-slate-400">
+                <MapPin size={13} className="text-bio-400" />
                 {profile.location}
               </p>
             )}
@@ -108,7 +108,7 @@ export function PublicProfilePage() {
         </div>
 
         {profile.bio && (
-          <p className="mt-3 text-sm text-slate-300">{profile.bio}</p>
+          <p className="mt-3 break-words text-sm text-slate-300">{profile.bio}</p>
         )}
 
         <div className="mt-4 grid grid-cols-3 gap-3">
@@ -118,7 +118,7 @@ export function PublicProfilePage() {
           </div>
           <div className="rounded-2xl border border-white/5 bg-forest-900/40 p-3 text-center">
             <p className="text-xl font-bold text-slate-50">{categories.length}</p>
-            <p className="text-xs text-slate-400">CategorÃ­as</p>
+            <p className="text-xs text-slate-400">Categor�as</p>
           </div>
           <div className="rounded-2xl border border-white/5 bg-forest-900/40 p-3 text-center">
             <p className="text-xl font-bold text-slate-50">
@@ -152,7 +152,7 @@ export function PublicProfilePage() {
         <h2 className="mb-2 text-lg font-bold text-slate-50">Avistamientos</h2>
         {sightings.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-forest-900/40 p-6 text-center">
-            <p className="text-sm text-slate-300">AÃºn no hay avistamientos publicados.</p>
+            <p className="text-sm text-slate-300">A�n no hay avistamientos publicados.</p>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
@@ -172,3 +172,4 @@ export function PublicProfilePage() {
     </div>
   );
 }
+

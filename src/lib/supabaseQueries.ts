@@ -1,4 +1,5 @@
 ﻿import { supabase } from "@/lib/supabase";
+import { buildIlikeFilter } from "@/lib/searchUtils";
 import type { Comment, Sighting, SightingRow, User } from "@/types";
 
 type ProfileInfo = { full_name: string; avatar_url?: string };
@@ -49,8 +50,10 @@ export async function fetchSightings({
 
   if (category && category !== "Todas") query = query.eq("category", category);
   if (search && search.trim()) {
-    const term = `%${search.trim()}%`;
-    query = query.or(`species_name.ilike.${term},description.ilike.${term},location.ilike.${term}`);
+    const term = search.trim();
+    query = query.or(
+      `${buildIlikeFilter("species_name", term)},${buildIlikeFilter("description", term)},${buildIlikeFilter("location", term)}`,
+    );
   }
 
   const { data, error } = await query;
@@ -81,7 +84,6 @@ export async function fetchSightings({
 }
 
 export async function createSighting(input: {
-  userId: string;
   commonName: string;
   scientificName?: string | null;
   category: string;
@@ -91,10 +93,19 @@ export async function createSighting(input: {
   latitude: number | null;
   longitude: number | null;
 }): Promise<Sighting> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Debes iniciar sesión para publicar un avistamiento.");
+  }
+
   const { data, error } = await supabase
     .from("sightings")
     .insert({
-      user_id: input.userId,
+      user_id: user.id,
       species_name: input.commonName,
       scientific_name: input.scientificName?.trim() || null,
       category: input.category,
@@ -151,7 +162,7 @@ export async function createSighting(input: {
 export async function fetchComments(sightingId: string): Promise<Comment[]> {
   const { data, error } = await supabase
     .from("comments")
-    .select("*")
+    .select("id, sighting_id, user_id, comment, created_at")
     .eq("sighting_id", sightingId)
     .order("created_at", { ascending: true });
 
@@ -201,7 +212,7 @@ export async function addComment(
   const { data, error } = await supabase
     .from("comments")
     .insert({ sighting_id: sightingId, user_id: userId, comment: text })
-    .select("*")
+    .select("id, sighting_id, user_id, comment, created_at")
     .single();
 
   if (error) throw error;
@@ -320,7 +331,7 @@ export async function toggleLike(
 export async function fetchSightingById(id: string): Promise<Sighting | null> {
   const { data, error } = await supabase
     .from("sightings")
-    .select("*")
+    .select("id, user_id, species_name, scientific_name, description, image_url, location, category, latitude, longitude, created_at, likes_count, comments_count")
     .eq("id", id)
     .maybeSingle();
 
@@ -460,7 +471,7 @@ function mapProfileRow(row: Record<string, unknown>): Profile {
 export async function fetchProfile(profileId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, full_name, avatar_url, bio, academic_program, location")
     .eq("id", profileId)
     .maybeSingle();
 
@@ -482,7 +493,7 @@ export async function updateProfile(profileId: string, input: UpdateProfileInput
   const { data, error } = await supabase
     .from("profiles")
     .upsert(payload, { onConflict: "id" })
-    .select("*")
+    .select("id, full_name, avatar_url, bio, academic_program, location")
     .single();
 
   if (error) throw error;

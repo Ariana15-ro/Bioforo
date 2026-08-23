@@ -51,7 +51,7 @@ export function MapPage() {
   }, [sightings, searchTerm, activeCategory]);
 
   return (
-    <div className="w-full space-y-3" aria-live="polite">
+    <div className="w-full min-w-0 space-y-3 md:mx-0 md:max-w-none" aria-live="polite">
       <label className="animate-fade-up relative block">
         <Search
           size={18}
@@ -67,7 +67,7 @@ export function MapPage() {
         />
       </label>
 
-      <div className="animate-fade-up no-scrollbar flex gap-2 overflow-x-auto">
+      <div className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto">
         {CATEGORIES.map((cat) => {
           const active = cat === activeCategory;
           return (
@@ -88,7 +88,7 @@ export function MapPage() {
       </div>
 
       {visible.length > 0 && (
-        <div className="animate-fade-up relative h-[72vh] overflow-hidden rounded-2xl border border-white/10 bg-forest-900/60 lg:h-[calc(100vh-13rem)]">
+        <div className="animate-fade-up relative min-h-[60vh] h-[65vh] overflow-hidden rounded-2xl border border-white/10 bg-forest-900/60 lg:h-[calc(100vh-13rem)]">
           <BiodiversityMap sightings={visible} className="h-full w-full" />
         </div>
       )}

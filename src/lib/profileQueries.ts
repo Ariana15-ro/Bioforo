@@ -35,12 +35,15 @@ export async function fetchMyProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, full_name, avatar_url, bio, academic_program, location")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!error && data) {
-    return mapProfileRow(data);
+    return {
+      ...mapProfileRow(data),
+      email: user.email ?? "",
+    };
   }
 
   const m = (user.user_metadata ?? {}) as Record<string, unknown>;
@@ -73,17 +76,19 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<Profil
     .upsert(
       {
         id: user.id,
-        email: user.email,
         ...input,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "id" },
     )
-    .select("*")
+    .select("id, full_name, avatar_url, bio, academic_program, location")
     .single();
 
   if (error) throw error;
-  return mapProfileRow(data);
+  return {
+    ...mapProfileRow(data),
+    email: user.email ?? "",
+  };
 }
 
 /**
@@ -92,7 +97,7 @@ export async function updateMyProfile(input: UpdateProfileInput): Promise<Profil
 export async function fetchSightingsByUser(userId: string): Promise<Sighting[]> {
   const { data, error } = await supabase
     .from("sightings")
-    .select("*")
+    .select("id, species_name, scientific_name, description, image_url, location, category, latitude, longitude, created_at, likes_count, comments_count, user_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 

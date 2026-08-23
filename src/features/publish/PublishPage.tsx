@@ -13,6 +13,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
 import { supabase } from "@/lib/supabase";
 import { createSighting } from "@/lib/supabaseQueries";
+import { processImage } from "@/lib/imageUtils";
 import type { Category, Sighting } from "@/types";
 
 const CATEGORIES: Category[] = [
@@ -52,10 +53,8 @@ async function uploadImage(file: File): Promise<string> {
     throw new Error("Debes iniciar sesión para subir imágenes.");
   }
 
-  const ext = file.name.includes(".")
-    ? file.name.split(".").pop()!.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5)
-    : "jpg";
-  const path = `public/${crypto.randomUUID()}.${ext || "jpg"}`;
+  const ext = "jpg";
+  const path = `public/sightings/${crypto.randomUUID()}.${ext}`;
 
   const { data, error } = await supabase.storage
     .from("sightings")
@@ -107,11 +106,12 @@ export function PublishPage() {
     setUploading(true);
     setPreviewUrl("");
     try {
-      const uploaded = await uploadImage(file);
+      const processed = await processImage(file, { maxWidth: 1600, maxHeight: 1600, quality: 0.8, mimeType: "image/jpeg" });
+      const uploaded = await uploadImage(processed);
       setPreviewUrl(uploaded);
       setValue("imageUrl", uploaded, { shouldValidate: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "No se pudo subir la imagen.";
+      const msg = err instanceof Error ? err.message : "No se pudo procesar o subir la imagen.";
       toast.error(msg);
     } finally {
       setUploading(false);
@@ -124,14 +124,18 @@ export function PublishPage() {
   };
 
   const getLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setCoords({ lat: 4.71, lng: -74.07 }),
-      );
-    } else {
-      setCoords({ lat: 4.71, lng: -74.07 });
+    if (!navigator.geolocation) {
+      toast.error("Tu navegador no soporta geolocalización.");
+      return;
     }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {
+        setCoords(null);
+        toast.error("No se pudo obtener tu ubicación. Activa el GPS o escribe el lugar manualmente.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    );
   };
 
   const onSubmit = async (values: PublishValues) => {
@@ -144,7 +148,6 @@ export function PublishPage() {
 
     try {
       const created = await createSighting({
-        userId: user.id,
         commonName: values.commonName,
         scientificName: values.scientificName ?? null,
         category: values.category,
@@ -283,12 +286,12 @@ export function PublishPage() {
 
           <label className="block text-sm text-slate-200">
             <span className="mb-1 block font-medium">Descripción</span>
-            <textarea
-              rows={4}
-              placeholder="Comportamiento, características, hábitat…"
-              className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500"
-              {...register("description")}
-            />
+              <textarea
+                rows={4}
+                placeholder="Comportamiento, características, hábitat…"
+                className="w-full rounded-xl border border-white/15 bg-forest-950/60 px-3 py-2.5 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-bio-500 break-words"
+                {...register("description")}
+              />
             {errors.description && (
               <span className="mt-1 block text-xs text-red-400">
                 {errors.description.message}

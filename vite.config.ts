@@ -11,31 +11,10 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico"],
+      manifest: false,
       icon: {
         source: "public/logo.png",
         sizes: [192, 512],
-      },
-      manifest: {
-        name: "BioForo",
-        short_name: "BioForo",
-        description: "App de avistamientos de biodiversidad",
-        start_url: "/",
-        display: "standalone",
-        background_color: "#0e1710",
-        theme_color: "#0e1710",
-        lang: "es",
-        icons: [
-          {
-            src: "/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
-          },
-          {
-            src: "/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-        ],
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,

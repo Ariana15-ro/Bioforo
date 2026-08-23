@@ -85,7 +85,7 @@ export function NotificationsPage() {
               >
                 <Avatar name={n.userName} size={40} className="ring-2 ring-forest-900" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-slate-200">
+                  <p className="break-words text-sm text-slate-200">
                     <span className="font-semibold text-slate-50">
                       {n.userName}
                     </span>{" "}

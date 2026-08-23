@@ -36,21 +36,21 @@ const CATEGORIES: Category[] = [
 
 const CommentItem = memo(function CommentItem({ comment }: { comment: Comment }) {
   return (
-    <li className="flex items-start gap-2">
-      <Avatar name={comment.authorName} size={28} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-slate-200">
-          <span className="font-semibold text-slate-50">{comment.authorName}</span>{" "}
-          {comment.text}
-        </p>
-        <p className="text-xs text-slate-400">
-          {formatDistanceToNow(new Date(comment.createdAt), {
-            addSuffix: true,
-            locale: es,
-          })}
-        </p>
-      </div>
-    </li>
+        <li className="flex items-start gap-2">
+          <Avatar name={comment.authorName} size={28} />
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm text-slate-200">
+              <span className="font-semibold text-slate-50">{comment.authorName}</span>{" "}
+              {comment.text}
+            </p>
+            <p className="text-xs text-slate-400">
+              {formatDistanceToNow(new Date(comment.createdAt), {
+                addSuffix: true,
+                locale: es,
+              })}
+            </p>
+          </div>
+        </li>
   );
 });
 
@@ -467,15 +467,16 @@ function PostDetailModalBase() {
         ) : (
           <>
             <SpeciesImage
+              fit="contain"
               src={sighting.imageUrl}
               alt={sighting.commonName}
-              className="h-64 w-full shrink-0"
+              className="w-full max-h-[70vh] h-auto bg-forest-800 shrink-0"
             />
             <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3">
               <div className="space-y-3">
                 <div>
                   <div className="flex items-start justify-between gap-3">
-                    <h2 id="post-detail-title" className="text-xl font-bold text-slate-50">
+                    <h2 id="post-detail-title" className="break-words text-xl font-bold text-slate-50">
                       {sighting.commonName}
                     </h2>
                     {isOwner && (
@@ -512,31 +513,31 @@ function PostDetailModalBase() {
                   {sighting.location}
                 </p>
 
-                <p className="text-sm text-slate-200">{sighting.description}</p>
+                <p className="break-words text-sm text-slate-200">{sighting.description}</p>
 
                 <div className="flex items-center justify-between border-t border-white/5 pt-3">
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigateToProfile(sighting.author.id);
-                      }}
-                      className="flex items-center gap-2 rounded-full transition hover:bg-white/5"
-                    >
-                      <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
-                      <div className="text-left text-xs">
-                        <p className="font-medium text-slate-100">
-                          {sighting.author.displayName}
-                        </p>
-                        <p className="text-slate-400">
-                          {formatDistanceToNow(new Date(sighting.createdAt), {
-                            addSuffix: true,
-                            locale: es,
-                          })}
-                        </p>
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateToProfile(sighting.author.id);
+                        }}
+                        className="flex min-w-0 items-center gap-2 overflow-hidden rounded-full transition hover:bg-white/5"
+                      >
+                        <Avatar name={sighting.author.displayName} src={authorAvatarUrl} size={32} />
+                        <div className="min-w-0 text-left text-xs">
+                          <p className="truncate font-medium text-slate-100">
+                            {sighting.author.displayName}
+                          </p>
+                          <p className="truncate text-slate-400">
+                            {formatDistanceToNow(new Date(sighting.createdAt), {
+                              addSuffix: true,
+                              locale: es,
+                            })}
+                          </p>
+                        </div>
+                      </button>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
