@@ -10,10 +10,12 @@ export function SpeciesImage({
   src,
   alt,
   className,
+  fit = "cover",
 }: {
   src: string;
   alt: string;
   className?: string;
+  fit?: "cover" | "contain";
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -31,13 +33,15 @@ export function SpeciesImage({
     );
   }
 
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover";
+
   return (
     <img
       src={src}
       alt={alt}
       loading="lazy"
       onError={() => setFailed(true)}
-      className={cn("object-cover", className)}
+      className={cn(fitClass, "min-w-0", className)}
     />
   );
 }

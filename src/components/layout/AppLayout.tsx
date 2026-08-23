@@ -23,8 +23,8 @@ export function AppLayout() {
         <Sidebar />
 
         {/* Screen content (each tab page renders here) */}
-        <main className="flex-1 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-6">
-          <div className="mx-auto w-full md:max-w-6xl">
+        <main className="flex-1 min-w-0 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-6">
+          <div className="mx-auto w-full min-w-0 md:max-w-6xl">
             <Outlet />
           </div>
         </main>

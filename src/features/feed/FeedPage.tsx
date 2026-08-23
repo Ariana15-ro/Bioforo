@@ -81,12 +81,14 @@ const SightingCard = memo(function SightingCard({
         }
       }}
       style={{ animationDelay: `${Math.min(index, 20) * 50}ms` }}
-      className="animate-fade-up flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/5 bg-forest-900/60 transition hover:border-bio-500/40 hover:shadow-lg hover:shadow-bio-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bio-500"
+      className="animate-fade-up flex cursor-pointer flex-col rounded-2xl border border-white/5 bg-forest-900/60 transition hover:border-bio-500/40 hover:shadow-lg hover:shadow-bio-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-bio-500 min-w-0"
     >
-      <SpeciesImage src={sighting.imageUrl} alt={sighting.commonName} className="h-48 w-full" />
-      <div className="flex flex-1 flex-col space-y-2 p-4">
-        <h2 className="text-lg font-bold text-slate-50">{sighting.commonName}</h2>
-        <p className="line-clamp-2 text-sm text-slate-300">{sighting.description}</p>
+      <div className="overflow-hidden rounded-t-2xl bg-forest-800 min-w-0">
+        <SpeciesImage fit="contain" src={sighting.imageUrl} alt={sighting.commonName} className="h-auto w-full max-w-full bg-forest-800" />
+      </div>
+      <div className="flex flex-1 flex-col space-y-2 p-3 sm:p-4">
+        <h2 className="break-words text-base sm:text-lg font-bold text-slate-50">{sighting.commonName}</h2>
+        <p className="break-words line-clamp-2 text-sm text-slate-300">{sighting.description}</p>
         <p className="flex items-center gap-1 text-xs text-slate-400">
           <MapPin size={14} className="text-bio-400" />
           {sighting.location}
@@ -95,10 +97,10 @@ const SightingCard = memo(function SightingCard({
           <button
             type="button"
             onClick={authorClick}
-            className="flex items-center gap-2 rounded-full transition hover:bg-white/5"
+            className="flex min-w-0 items-center gap-2 overflow-hidden rounded-full transition hover:bg-white/5"
           >
             <Avatar name={sighting.author.displayName} src={sighting.author.avatarUrl} size={22} />
-            <span className="text-left">
+            <span className="truncate text-left">
               {sighting.author.displayName} · {timeAgo(sighting.createdAt)}
             </span>
           </button>
@@ -275,8 +277,8 @@ export function FeedPage() {
   );
 
   return (
-    <div className="w-full space-y-4">
-      <header className="sticky top-0 z-10 flex items-center bg-forest-950/85 px-4 py-3 backdrop-blur md:px-8">
+    <div className="w-full max-w-full min-w-0 space-y-4 overflow-x-hidden md:max-w-none md:mx-0">
+      <header className="sticky top-0 z-10 flex items-center bg-forest-950/85 py-3 backdrop-blur">
         <label className="relative flex-1">
           <Search
             size={18}
@@ -293,7 +295,7 @@ export function FeedPage() {
         </label>
       </header>
 
-      <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 md:px-8">
+      <div className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto">
         {CATEGORIES.map((cat) => {
           const active = cat === activeCategory;
           return (
@@ -315,13 +317,15 @@ export function FeedPage() {
 
       <div aria-live="polite" className="w-full">
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="flex flex-col overflow-hidden rounded-2xl border border-white/5 bg-forest-900/60"
+                className="flex flex-col overflow-hidden rounded-2xl border border-white/5 bg-forest-900/60 min-w-0"
               >
-                <Skeleton className="h-48 w-full rounded-none" />
+                <div className="aspect-video w-full">
+                <Skeleton className="h-full w-full rounded-none" />
+              </div>
               </div>
             ))}
           </div>
@@ -333,7 +337,7 @@ export function FeedPage() {
             </Button>
           </div>
         ) : sightings.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sightings.map((s, idx) => (
               <SightingCard
                 key={s.id}
