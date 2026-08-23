@@ -9,6 +9,7 @@ import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { fetchProfile } from "@/lib/supabaseQueries";
 import { fetchSightingsByUser } from "@/lib/profileQueries";
 import { computeBadges } from "@/lib/badgeUtils";
+import { getActiveChallenge, isChallengeCompleted } from "@/lib/challengeUtils";
 import { usePostModal } from "@/components/modals/PostDetailModal";
 import type { Profile, Sighting } from "@/types";
 
@@ -145,6 +146,17 @@ export function PublicProfilePage() {
           ) : (
             <p className="text-xs text-slate-400">Sigue publicando para desbloquear insignias.</p>
           )}
+          {(() => {
+            const challenge = getActiveChallenge();
+            if (!challenge) return null;
+            const completed = isChallengeCompleted(sightings, challenge);
+            if (!completed) return null;
+            return (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1.5 text-sm font-medium text-amber-300">
+                Reto semanal
+              </span>
+            );
+          })()}
         </div>
       </div>
 

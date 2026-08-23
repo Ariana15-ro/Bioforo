@@ -11,6 +11,7 @@ import { fetchProfile, updateProfile } from "@/lib/supabaseQueries";
 import { fetchSightingsByUser } from "@/lib/profileQueries";
 import { computeBadges } from "@/lib/badgeUtils";
 import { processImage } from "@/lib/imageUtils";
+import { getActiveChallenge, isChallengeCompleted } from "@/lib/challengeUtils";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
@@ -342,6 +343,17 @@ export function ProfilePage() {
           ) : (
             <p className="text-xs text-slate-400">Sigue publicando para desbloquear insignias.</p>
           )}
+          {(() => {
+            const challenge = getActiveChallenge();
+            if (!challenge) return null;
+            const completed = isChallengeCompleted(mySightings, challenge);
+            if (!completed) return null;
+            return (
+              <span className="flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1.5 text-sm font-medium text-amber-300">
+                Reto semanal
+              </span>
+            );
+          })()}
         </div>
 
         <div>

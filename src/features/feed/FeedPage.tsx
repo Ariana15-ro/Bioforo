@@ -1,7 +1,7 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { Heart, Leaf, MapPin, Search, Share } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Heart, Leaf, LocateFixed, MapPin, Search, Share, ExternalLink } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -16,6 +16,8 @@ import {
   toggleLike,
   fetchSightingById,
 } from "@/lib/supabaseQueries";
+import { getUserLocation, haversineKm } from "@/lib/geoUtils";
+import { getActiveChallenge } from "@/lib/challengeUtils";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
 import { useShareSighting } from "@/hooks/useShareSighting";
@@ -93,6 +95,26 @@ const SightingCard = memo(function SightingCard({
           <MapPin size={14} className="text-bio-400" />
           {sighting.location}
         </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`https://www.inaturalist.org/search?q=${encodeURIComponent(sighting.species || sighting.commonName)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 transition hover:border-bio-500/40 hover:text-bio-300"
+          >
+            <ExternalLink size={10} />
+            iNaturalist
+          </a>
+          <a
+            href={`https://www.gbif.org/species/search?q=${encodeURIComponent(sighting.species || sighting.commonName)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium text-slate-400 transition hover:border-bio-500/40 hover:text-bio-300"
+          >
+            <ExternalLink size={10} />
+            GBIF
+          </a>
+        </div>
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <button
             type="button"
@@ -159,6 +181,8 @@ export function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [error, setError] = useState(false);
+  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const [nearbyActive, setNearbyActive] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const userId = useAuthStore((s) => s.user?.id);
@@ -166,6 +190,22 @@ export function FeedPage() {
   const navigateToProfile = useCallback((authorId: string) => {
     navigate(`/profile/${authorId}`);
   }, [navigate]);
+
+  const handleNearby = useCallback(async () => {
+    if (nearbyActive) {
+      setNearbyActive(false);
+      setUserLoc(null);
+      return;
+    }
+    try {
+      const loc = await getUserLocation();
+      setUserLoc(loc);
+      setNearbyActive(true);
+      toast.success("Mostrando avistamientos a 50 km de tu ubicación.");
+    } catch {
+      toast.error("No se pudo obtener tu ubicación. Activa el GPS o escribe el lugar manualmente.");
+    }
+  }, [nearbyActive]);
 
   const loadFeed = useCallback(async () => {
     setLoading(true);
@@ -276,6 +316,24 @@ export function FeedPage() {
     [liked, userId, setLiked],
   );
 
+  const visible: Sighting[] = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return sightings.filter((s) => {
+      const hasCoords = Number.isFinite(s.latitude) && Number.isFinite(s.longitude);
+      const matchesCategory =
+        activeCategory === "Todas" || s.category === activeCategory;
+      const matchesSearch =
+        term === "" ||
+        s.commonName.toLowerCase().includes(term) ||
+        (s.species ?? "").toLowerCase().includes(term) ||
+        s.location.toLowerCase().includes(term);
+      const matchesNearby = nearbyActive
+        ? userLoc !== null && hasCoords && haversineKm(userLoc.lat, userLoc.lng, s.latitude!, s.longitude!) <= 50
+        : true;
+      return hasCoords && matchesCategory && matchesSearch && matchesNearby;
+    });
+  }, [sightings, searchTerm, activeCategory, nearbyActive, userLoc]);
+
   return (
     <div className="w-full max-w-full min-w-0 space-y-4 overflow-x-hidden md:max-w-none md:mx-0">
       <header className="sticky top-0 z-10 flex items-center bg-forest-950/85 py-3 backdrop-blur">
@@ -295,6 +353,24 @@ export function FeedPage() {
         </label>
       </header>
 
+      {(() => {
+        const challenge = getActiveChallenge();
+        if (!challenge) return null;
+        return (
+          <div className="animate-fade-up rounded-2xl border border-bio-500/30 bg-bio-500/10 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-bio-300">Reto semanal</p>
+                <p className="truncate text-xs text-slate-200">{challenge.description}</p>
+              </div>
+              <Button variant="primary" onClick={() => navigate("/publish")} className="shrink-0">
+                Publicar
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto">
         {CATEGORIES.map((cat) => {
           const active = cat === activeCategory;
@@ -313,6 +389,18 @@ export function FeedPage() {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={handleNearby}
+          className={`flex shrink-0 items-center gap-1 rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+            nearbyActive
+              ? "border-bio-500 bg-bio-500 text-white"
+              : "border-white/10 text-slate-300 hover:border-white/20"
+          }`}
+        >
+          <LocateFixed size={16} />
+          {nearbyActive ? "Cerca de mí" : "Cerca de mí"}
+        </button>
       </div>
 
       <div aria-live="polite" className="w-full">
@@ -336,9 +424,9 @@ export function FeedPage() {
               Reintentar
             </Button>
           </div>
-        ) : sightings.length > 0 ? (
+        ) : visible.length > 0 ? (
           <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sightings.map((s, idx) => (
+            {visible.map((s, idx) => (
               <SightingCard
                 key={s.id}
                 sighting={s}
@@ -350,7 +438,7 @@ export function FeedPage() {
               />
             ))}
           </div>
-        ) : searchTerm || activeCategory !== "Todas" ? (
+        ) : nearbyActive || searchTerm || activeCategory !== "Todas" ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-forest-900/40 p-6 text-center">
             <Leaf size={48} className="mb-3 text-bio-500" aria-hidden="true" />
             <h3 className="text-base font-semibold text-slate-100">

@@ -1,6 +1,6 @@
 ﻿import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
-import { Heart, MapPin, MessageCircle, Pencil, Send, Share, Trash2 } from "lucide-react";
+import { Heart, MapPin, MessageCircle, Pencil, Send, Share, Trash2, ExternalLink } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -512,6 +512,26 @@ function PostDetailModalBase() {
                   <MapPin size={15} className="text-bio-400" />
                   {sighting.location}
                 </p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.inaturalist.org/search?q=${encodeURIComponent(sighting.species || sighting.commonName)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-bio-500/40 hover:text-bio-300"
+                  >
+                    <ExternalLink size={12} />
+                    iNaturalist
+                  </a>
+                  <a
+                    href={`https://www.gbif.org/species/search?q=${encodeURIComponent(sighting.species || sighting.commonName)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-bio-500/40 hover:text-bio-300"
+                  >
+                    <ExternalLink size={12} />
+                    GBIF
+                  </a>
+                </div>
 
                 <p className="break-words text-sm text-slate-200">{sighting.description}</p>
 
