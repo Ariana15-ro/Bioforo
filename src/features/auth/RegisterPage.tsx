@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuthStore } from "@/store/authStore";
 import { AuthLayout } from "./AuthLayout";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 
 /** Validation schema for the register form. */
 const registerSchema = z
@@ -38,6 +39,8 @@ export function RegisterPage() {
   } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = async (values: RegisterValues) => {
+    const { ensureOnline } = useOnlineAction();
+    if (!ensureOnline()) return;
     // Create the account in Supabase Auth; auto-logs in on success.
     const result = await register({
       fullName: values.fullName,

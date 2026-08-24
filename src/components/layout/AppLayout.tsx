@@ -7,6 +7,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { PostDetailModal } from "@/components/modals/PostDetailModal";
 import { NotificationsRealtimeProvider } from "@/components/notifications/NotificationsRealtimeProvider";
 import { usePostDeepLink } from "@/hooks/usePostDeepLink";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 /**
  * Shell for the authenticated app area.
@@ -15,15 +16,23 @@ import { usePostDeepLink } from "@/hooks/usePostDeepLink";
  */
 export function AppLayout() {
   usePostDeepLink();
+  const offline = useOfflineStatus();
 
   return (
     <NotificationsRealtimeProvider>
       <div className="flex min-h-screen w-full overflow-x-hidden">
+        {/* Offline banner */}
+        {offline && (
+          <div className="fixed inset-x-0 top-0 z-[2000] border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs font-medium text-amber-300">
+            Sin conexión – mostrando datos guardados
+          </div>
+        )}
+
         {/* Desktop sidebar (hidden on mobile) */}
         <Sidebar />
 
         {/* Screen content (each tab page renders here) */}
-        <main className="flex-1 min-w-0 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-6">
+        <main className={`flex-1 min-w-0 px-4 pb-28 pt-4 md:px-8 md:pb-10 md:pt-6 ${offline ? "pt-10" : ""}`}>
           <div className="mx-auto w-full min-w-0 md:max-w-6xl">
             <Outlet />
           </div>

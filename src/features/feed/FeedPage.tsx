@@ -18,6 +18,8 @@ import {
 } from "@/lib/supabaseQueries";
 import { getUserLocation, haversineKm } from "@/lib/geoUtils";
 import { getActiveChallenge } from "@/lib/challengeUtils";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
 import { useShareSighting } from "@/hooks/useShareSighting";
@@ -168,12 +170,14 @@ const SightingCard = memo(function SightingCard({
 
 export function FeedPage() {
   const navigate = useNavigate();
+  const offline = useOfflineStatus();
   const sightings = useSightingsStore((s) => s.sightings);
   const setSightings = useSightingsStore((s) => s.setSightings);
   const loadMore = useSightingsStore((s) => s.loadMore);
   const hasMore = useSightingsStore((s) => s.hasMore);
   const loadingMore = useSightingsStore((s) => s.loading);
   const openPost = useSightingsStore((s) => s.openPost);
+  const loadOfflineCache = useSightingsStore((s) => s.loadOfflineCache);
 
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -216,17 +220,27 @@ export function FeedPage() {
         search: searchTerm,
       });
       setSightings(data);
-    } catch (err) {
-      setError(true);
-      toast.error(err instanceof Error ? err.message : "Error al cargar el feed.");
+    } catch {
+      if (offline) {
+        loadOfflineCache();
+      } else {
+        setError(true);
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeCategory, searchTerm, setSightings]);
+  }, [activeCategory, searchTerm, setSightings, offline, loadOfflineCache]);
 
   useEffect(() => {
     loadFeed();
   }, [loadFeed]);
+
+  useEffect(() => {
+    if (offline) {
+      loadOfflineCache();
+      toast.error("Sin conexión – mostrando datos guardados");
+    }
+  }, [offline, loadOfflineCache]);
 
   useEffect(() => {
     if (!userId) return;
@@ -280,6 +294,9 @@ export function FeedPage() {
         toast.error("Inicia sesión para dar me gusta.");
         return;
       }
+
+      const { ensureOnline } = useOnlineAction();
+      if (!ensureOnline()) return;
 
       const isCurrentlyLiked = liked[id] || false;
       const newLikedState = !isCurrentlyLiked;

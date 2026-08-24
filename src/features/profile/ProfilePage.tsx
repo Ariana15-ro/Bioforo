@@ -15,6 +15,7 @@ import { getActiveChallenge, isChallengeCompleted } from "@/lib/challengeUtils";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/authStore";
 import { useSightingsStore } from "@/store/sightingsStore";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 import type { Profile, Sighting } from "@/types";
 import toast from "react-hot-toast";
 
@@ -139,6 +140,8 @@ export function ProfilePage() {
   };
 
   const handleSaveProfile = async () => {
+    const { ensureOnline } = useOnlineAction();
+    if (!ensureOnline()) return;
     if (!rawUser?.id || !profile) return;
     setSaving(true);
     try {

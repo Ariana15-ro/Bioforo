@@ -14,6 +14,7 @@ import { useSightingsStore } from "@/store/sightingsStore";
 import { supabase } from "@/lib/supabase";
 import { createSighting } from "@/lib/supabaseQueries";
 import { processImage } from "@/lib/imageUtils";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 import type { Category, Sighting } from "@/types";
 
 const CATEGORIES: Category[] = [
@@ -140,11 +141,14 @@ export function PublishPage() {
 
   const onSubmit = async (values: PublishValues) => {
     const { user } = useAuthStore.getState();
+    const { ensureOnline } = useOnlineAction();
 
     if (!user?.id) {
       toast.error("Debes iniciar sesión para publicar.");
       return;
     }
+
+    if (!ensureOnline()) return;
 
     try {
       const created = await createSighting({

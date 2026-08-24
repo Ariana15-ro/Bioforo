@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/common/Skeleton";
 import type { NotificationType } from "@/store/notificationsStore";
 import { useNotificationsStore } from "@/store/notificationsStore";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 const META: Record<NotificationType, { icon: typeof Heart; color: string }> = {
   like: { icon: Heart, color: "text-bio-400" },
@@ -23,6 +24,7 @@ export function NotificationsPage() {
   const loadNotifications = useNotificationsStore((s) => s.load);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const offline = useOfflineStatus();
 
   const retry = useCallback(() => {
     setError(false);
@@ -66,10 +68,14 @@ export function NotificationsPage() {
         </ul>
       ) : error ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center">
-          <p className="text-sm text-red-300">No se pudieron cargar las notificaciones.</p>
-          <Button variant="primary" onClick={retry} className="mt-3">
-            Reintentar
-          </Button>
+          <p className="text-sm text-red-300">
+            {offline ? "Sin conexión – no se pudieron cargar las notificaciones." : "No se pudieron cargar las notificaciones."}
+          </p>
+          {!offline && (
+            <Button variant="primary" onClick={retry} className="mt-3">
+              Reintentar
+            </Button>
+          )}
         </div>
       ) : notifications.length > 0 ? (
         <ul className="space-y-2">

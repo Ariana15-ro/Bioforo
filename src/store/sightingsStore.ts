@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { fetchSightings, type FetchSightingsOptions } from "@/lib/supabaseQueries";
+import { getCachedFeed, setCachedFeed, type CachedSighting } from "@/lib/offlineCache";
 import type { Sighting } from "@/types";
 
 interface SightingsState {
@@ -16,6 +17,7 @@ interface SightingsState {
   removeSighting: (id: string) => void;
   loadMore: (opts?: Omit<FetchSightingsOptions, "offset">) => Promise<void>;
   reset: () => void;
+  loadOfflineCache: () => void;
 }
 
 const PAGE_SIZE = 12;
@@ -32,7 +34,33 @@ export const useSightingsStore = create<SightingsState>((set, get) => ({
   loading: false,
   hasMore: true,
   selectedId: null,
-  setSightings: (sightings) => set({ sightings, hasMore: sightings.length >= PAGE_SIZE }),
+  setSightings: (sightings) => {
+    set({ sightings, hasMore: sightings.length >= PAGE_SIZE });
+    try {
+      const cache: CachedSighting[] = sightings.map((s) => ({
+        id: s.id,
+        commonName: s.commonName,
+        species: s.species || undefined,
+        description: s.description,
+        imageUrl: s.imageUrl,
+        location: s.location,
+        category: s.category,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        createdAt: s.createdAt,
+        likes: s.likes,
+        comments: s.comments,
+        author: {
+          id: s.author.id,
+          displayName: s.author.displayName,
+          avatarUrl: s.author.avatarUrl,
+        },
+      }));
+      setCachedFeed(cache);
+    } catch {
+      // ignore cache errors
+    }
+  },
   prependSighting: (s) => set((state) => ({ sightings: [s, ...state.sightings] })),
   updateSighting: (s) =>
     set((state) => ({
@@ -65,4 +93,14 @@ export const useSightingsStore = create<SightingsState>((set, get) => ({
     }
   },
   reset: () => set({ sightings: [], hasMore: true, loading: false, selectedId: null }),
+  loadOfflineCache: () => {
+    try {
+      const cached = getCachedFeed();
+      if (cached.length > 0 && get().sightings.length === 0) {
+        set({ sightings: cached as unknown as Sighting[], hasMore: false });
+      }
+    } catch {
+      // ignore
+    }
+  },
 }));

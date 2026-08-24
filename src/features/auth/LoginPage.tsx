@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuthStore } from "@/store/authStore";
 import { AuthLayout } from "./AuthLayout";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 
 /** Validation schema for the login form. */
 const loginSchema = z.object({
@@ -30,6 +31,8 @@ export function LoginPage() {
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginValues) => {
+    const { ensureOnline } = useOnlineAction();
+    if (!ensureOnline()) return;
     // Authenticate against Supabase Auth.
     const result = await login(values.email, values.password);
     if (!result.ok) {

@@ -34,7 +34,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Form panel */}
-      <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-y-auto">
         {/* Mobile background image + overlay */}
         <div
           aria-hidden

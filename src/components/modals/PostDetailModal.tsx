@@ -12,6 +12,7 @@ import { SpeciesImage } from "@/components/common/SpeciesImage";
 import { TextField } from "@/components/ui/TextField";
 import { supabase } from "@/lib/supabase";
 import { useShareSighting } from "@/hooks/useShareSighting";
+import { useOnlineAction } from "@/hooks/useOnlineAction";
 import {
   addComment,
   deleteSighting,
@@ -272,6 +273,8 @@ function PostDetailModalBase() {
       toast.error("Inicia sesión para dar me gusta.");
       return;
     }
+    const { ensureOnline } = useOnlineAction();
+    if (!ensureOnline()) return;
     const prevLiked = liked;
     setLiked(!prevLiked);
     try {
@@ -291,6 +294,8 @@ function PostDetailModalBase() {
         toast.error("Inicia sesión para comentar.");
         return;
       }
+      const { ensureOnline } = useOnlineAction();
+      if (!ensureOnline()) return;
       const optimistic: Comment = {
         id: `temp-${Date.now()}`,
         sightingId: sightingId,
