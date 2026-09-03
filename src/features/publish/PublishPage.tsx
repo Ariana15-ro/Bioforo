@@ -80,6 +80,7 @@ async function uploadImage(file: File): Promise<string> {
 
 export function PublishPage() {
   const navigate = useNavigate();
+  const { ensureOnline } = useOnlineAction();
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [uploading, setUploading] = useState(false);
@@ -141,7 +142,6 @@ export function PublishPage() {
 
   const onSubmit = async (values: PublishValues) => {
     const { user } = useAuthStore.getState();
-    const { ensureOnline } = useOnlineAction();
 
     if (!user?.id) {
       toast.error("Debes iniciar sesión para publicar.");

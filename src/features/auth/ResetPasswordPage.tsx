@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase";
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
+  const { ensureOnline } = useOnlineAction();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -17,7 +18,6 @@ export function ResetPasswordPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { ensureOnline } = useOnlineAction();
     if (!ensureOnline()) return;
 
     if (password.length < 6) {

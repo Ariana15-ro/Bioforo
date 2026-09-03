@@ -31,6 +31,7 @@ export function ProfilePage() {
   const rawUser = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
+  const { ensureOnline } = useOnlineAction();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [mySightings, setMySightings] = useState<Sighting[]>([]);
@@ -140,7 +141,6 @@ export function ProfilePage() {
   };
 
   const handleSaveProfile = async () => {
-    const { ensureOnline } = useOnlineAction();
     if (!ensureOnline()) return;
     if (!rawUser?.id || !profile) return;
     setSaving(true);

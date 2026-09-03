@@ -30,6 +30,7 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useAuthStore((s) => s.register);
+  const { ensureOnline } = useOnlineAction();
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
@@ -39,7 +40,6 @@ export function RegisterPage() {
   } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = async (values: RegisterValues) => {
-    const { ensureOnline } = useOnlineAction();
     if (!ensureOnline()) return;
     // Create the account in Supabase Auth; auto-logs in on success.
     const result = await register({

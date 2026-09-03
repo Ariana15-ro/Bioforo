@@ -190,6 +190,7 @@ export function FeedPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const userId = useAuthStore((s) => s.user?.id);
+  const { ensureOnline } = useOnlineAction();
 
   const navigateToProfile = useCallback((authorId: string) => {
     navigate(`/profile/${authorId}`);
@@ -294,8 +295,6 @@ export function FeedPage() {
         toast.error("Inicia sesión para dar me gusta.");
         return;
       }
-
-      const { ensureOnline } = useOnlineAction();
       if (!ensureOnline()) return;
 
       const isCurrentlyLiked = liked[id] || false;
@@ -330,7 +329,7 @@ export function FeedPage() {
         toast.error("No se pudo actualizar el me gusta.");
       }
     },
-    [liked, userId, setLiked],
+    [liked, userId, setLiked, ensureOnline],
   );
 
   const visible: Sighting[] = useMemo(() => {

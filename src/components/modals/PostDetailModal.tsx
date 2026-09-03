@@ -126,6 +126,7 @@ function PostDetailModalBase() {
   const userId = useAuthStore((s) => s.user?.id);
   const navigate = useNavigate();
   const { handleShare } = useShareSighting();
+  const { ensureOnline } = useOnlineAction();
 
   const sighting = sightings.find((s) => s.id === selectedId) ?? null;
   const open = Boolean(selectedId && sighting);
@@ -273,7 +274,6 @@ function PostDetailModalBase() {
       toast.error("Inicia sesión para dar me gusta.");
       return;
     }
-    const { ensureOnline } = useOnlineAction();
     if (!ensureOnline()) return;
     const prevLiked = liked;
     setLiked(!prevLiked);
@@ -286,7 +286,7 @@ function PostDetailModalBase() {
       setLiked(prevLiked);
       toast.error("No se pudo actualizar el me gusta.");
     }
-  }, [sightingId, userId, liked, storeUpdateSighting]);
+  }, [sightingId, userId, liked, ensureOnline, storeUpdateSighting]);
 
   const handleAddComment = useCallback(
     (text: string) => {
@@ -294,7 +294,6 @@ function PostDetailModalBase() {
         toast.error("Inicia sesión para comentar.");
         return;
       }
-      const { ensureOnline } = useOnlineAction();
       if (!ensureOnline()) return;
       const optimistic: Comment = {
         id: `temp-${Date.now()}`,
@@ -319,7 +318,7 @@ function PostDetailModalBase() {
           toast.error("No se pudo enviar el comentario.");
         });
     },
-    [sightingId, userId, storeUpdateSighting],
+    [sightingId, userId, ensureOnline, storeUpdateSighting],
   );
 
   const isOwner = Boolean(userId && sighting && sighting.author.id === userId);

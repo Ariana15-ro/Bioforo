@@ -22,6 +22,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const { ensureOnline } = useOnlineAction();
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
@@ -31,7 +32,6 @@ export function LoginPage() {
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginValues) => {
-    const { ensureOnline } = useOnlineAction();
     if (!ensureOnline()) return;
     // Authenticate against Supabase Auth.
     const result = await login(values.email, values.password);
