@@ -1,0 +1,41 @@
+name: Supabase keep-alive
+
+on:
+  # Evita que el proyecto Supabase Free entre en pausa por inactividad.
+  schedule:
+    - cron: "0 12 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - name: Ping Supabase REST API
+        shell: bash
+        run: |
+          response_file="$(mktemp)"
+
+          if ! status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/sightings?select=id&limit=1")"; then
+            echo "Supabase keep-alive request failed."
+            cat "$response_file"
+            rm -f "$response_file"
+            exit 1
+          fi
+
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Supabase keep-alive returned HTTP status $status."
+            cat "$response_file"
+            rm -f "$response_file"
+            exit 1
+          fi
+
+          echo "Supabase keep-alive succeeded with HTTP status $status."
+          rm -f "$response_file"
