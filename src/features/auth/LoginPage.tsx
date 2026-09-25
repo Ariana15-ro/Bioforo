@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuthStore } from "@/store/authStore";
 import { AuthLayout } from "./AuthLayout";
-import { useOnlineAction } from "@/hooks/useOnlineAction";
+import { checkOnline } from "@/hooks/onlineGuard";
+
+const OFFLINE_GUARD = import.meta.env.VITE_OFFLINE_GUARD === "true";
 
 /** Validation schema for the login form. */
 const loginSchema = z.object({
@@ -22,7 +24,6 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
-  const { ensureOnline } = useOnlineAction();
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
@@ -32,7 +33,7 @@ export function LoginPage() {
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginValues) => {
-    if (!ensureOnline()) return;
+    if (OFFLINE_GUARD && !checkOnline()) return;
     // Authenticate against Supabase Auth.
     const result = await login(values.email, values.password);
     if (!result.ok) {

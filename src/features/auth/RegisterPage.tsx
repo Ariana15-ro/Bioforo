@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { useAuthStore } from "@/store/authStore";
 import { AuthLayout } from "./AuthLayout";
-import { useOnlineAction } from "@/hooks/useOnlineAction";
+import { checkOnline } from "@/hooks/onlineGuard";
+
+const OFFLINE_GUARD = import.meta.env.VITE_OFFLINE_GUARD === "true";
 
 /** Validation schema for the register form. */
 const registerSchema = z
@@ -30,7 +32,6 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export function RegisterPage() {
   const navigate = useNavigate();
   const register = useAuthStore((s) => s.register);
-  const { ensureOnline } = useOnlineAction();
   const [authError, setAuthError] = useState<string | null>(null);
 
   const {
@@ -40,7 +41,7 @@ export function RegisterPage() {
   } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = async (values: RegisterValues) => {
-    if (!ensureOnline()) return;
+    if (OFFLINE_GUARD && !checkOnline()) return;
     // Create the account in Supabase Auth; auto-logs in on success.
     const result = await register({
       fullName: values.fullName,

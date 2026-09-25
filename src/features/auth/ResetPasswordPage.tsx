@@ -5,12 +5,13 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { AuthLayout } from "./AuthLayout";
-import { useOnlineAction } from "@/hooks/useOnlineAction";
+import { checkOnline } from "@/hooks/onlineGuard";
 import { supabase } from "@/lib/supabase";
+
+const OFFLINE_GUARD = import.meta.env.VITE_OFFLINE_GUARD === "true";
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
-  const { ensureOnline } = useOnlineAction();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -18,7 +19,7 @@ export function ResetPasswordPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ensureOnline()) return;
+    if (OFFLINE_GUARD && !checkOnline()) return;
 
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
