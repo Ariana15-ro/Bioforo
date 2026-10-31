@@ -55,6 +55,111 @@ function isTestSighting(sighting: Sighting): boolean {
   return suspiciousWords.length > 0 || words.filter((word) => word.length >= 6 && !/[aeiou]/.test(word)).length >= 3;
 }
 
+type ReferenceSighting = Sighting & { photoCreditUrl: string };
+
+const REFERENCE_SIGHTINGS: ReferenceSighting[] = [
+  {
+    id: "reference-guacamaya",
+    species: "Ara ararauna",
+    commonName: "Guacamaya azuliamarilla",
+    description: "Ave frugívora de plumaje azul y amarillo, propia de los bosques y sabanas arboladas tropicales.",
+    imageUrl: "https://images.pexels.com/photos/28965594/pexels-photo-28965594.jpeg?cs=srgb&dl=pexels-kl47-28965594.jpg&fm=jpg",
+    photoCreditUrl: "https://www.pexels.com/photo/vibrant-blue-and-yellow-macaw-perched-on-branch-28965594/",
+    location: "Guaviare, Colombia",
+    category: "Aves",
+    latitude: 2.57,
+    longitude: -72.64,
+    createdAt: "",
+    likes: 0,
+    comments: 0,
+    author: { id: "reference", username: "", displayName: "" },
+  },
+  {
+    id: "reference-loro",
+    species: "Pionus menstruus",
+    commonName: "Loro cabeciazul",
+    description: "Loro frugívoro de los bosques húmedos amazónicos, reconocible por su cabeza azul.",
+    imageUrl: "https://images.pexels.com/photos/18182991/pexels-photo-18182991.jpeg?cs=srgb&dl=pexels-juan-felipe-ramirez-312591454-18182991.jpg&fm=jpg",
+    photoCreditUrl: "https://www.pexels.com/photo/close-up-of-green-parrot-sitting-in-nature-18182991/",
+    location: "Guaviare, Colombia",
+    category: "Aves",
+    latitude: 2.33,
+    longitude: -72.63,
+    createdAt: "",
+    likes: 0,
+    comments: 0,
+    author: { id: "reference", username: "", displayName: "" },
+  },
+  {
+    id: "reference-heliconia",
+    species: "Heliconia tortuosa",
+    commonName: "Heliconia",
+    description: "Planta tropical de sotobosque cuyas flores aportan néctar a colibríes y otros polinizadores.",
+    imageUrl: "https://images.pexels.com/photos/12661719/pexels-photo-12661719.jpeg?cs=srgb&dl=pexels-yuraforrat-12661719.jpg&fm=jpg",
+    photoCreditUrl: "https://www.pexels.com/photo/tropical-heliconia-tortuosa-plant-12661719/",
+    location: "Guaviare, Colombia",
+    category: "Flora",
+    latitude: 2.57,
+    longitude: -72.64,
+    createdAt: "",
+    likes: 0,
+    comments: 0,
+    author: { id: "reference", username: "", displayName: "" },
+  },
+  {
+    id: "reference-tucan",
+    species: "Ramphastos sp.",
+    commonName: "Tucán amazónico",
+    description: "Tucán frugívoro y dispersor de semillas de los bosques húmedos amazónicos.",
+    imageUrl: "https://images.pexels.com/photos/39965541/pexels-photo-39965541.jpeg?cs=srgb&dl=pexels-lara-albuquerque-2161146522-39965541.jpg&fm=jpg",
+    photoCreditUrl: "https://www.pexels.com/photo/colorful-toucan-in-lush-tropical-habitat-39965541/",
+    location: "Guaviare, Colombia",
+    category: "Aves",
+    latitude: 1.96,
+    longitude: -72.65,
+    createdAt: "",
+    likes: 0,
+    comments: 0,
+    author: { id: "reference", username: "", displayName: "" },
+  },
+];
+
+const ReferenceSightingCard = memo(function ReferenceSightingCard({
+  sighting,
+  index,
+}: {
+  sighting: ReferenceSighting;
+  index: number;
+}) {
+  return (
+    <article
+      style={{ animationDelay: `${Math.min(index, 20) * 50}ms` }}
+      className="animate-fade-up flex min-w-0 flex-col rounded-2xl border border-white/5 bg-forest-900/60"
+    >
+      <div className="overflow-hidden rounded-t-2xl bg-forest-800">
+        <SpeciesImage src={sighting.imageUrl} alt={sighting.commonName} className="h-48 w-full" />
+      </div>
+      <div className="flex flex-1 flex-col space-y-2 p-3 sm:p-4">
+        <h2 className="text-base font-bold text-slate-50 sm:text-lg">{sighting.commonName}</h2>
+        <p className="text-xs italic text-slate-400">{sighting.species}</p>
+        <p className="text-sm text-slate-300">{sighting.description}</p>
+        <p className="flex items-center gap-1 text-xs text-slate-400">
+          <MapPin size={14} className="text-bio-400" />
+          {sighting.location} · {sighting.category}
+        </p>
+        <a
+          href={sighting.photoCreditUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-auto text-xs text-bio-400 hover:text-bio-300"
+        >
+          Foto de Pexels
+        </a>
+      </div>
+    </article>
+  );
+});
+
 const SightingCard = memo(function SightingCard({
   sighting,
   liked,
@@ -367,6 +472,21 @@ export function FeedPage() {
     });
   }, [sightings, searchTerm, activeCategory, nearbyActive, userLoc]);
 
+  const referenceSightings = useMemo(() => {
+    if (visible.length > 0 || nearbyActive || !sightings.some(isTestSighting)) return [];
+    const term = searchTerm.trim().toLowerCase();
+    return REFERENCE_SIGHTINGS.filter((sighting) => {
+      const matchesCategory = activeCategory === "Todas" || sighting.category === activeCategory;
+      const matchesSearch =
+        !term ||
+        sighting.commonName.toLowerCase().includes(term) ||
+        sighting.species.toLowerCase().includes(term) ||
+        sighting.location.toLowerCase().includes(term) ||
+        sighting.description.toLowerCase().includes(term);
+      return matchesCategory && matchesSearch;
+    });
+  }, [visible.length, sightings, nearbyActive, activeCategory, searchTerm]);
+
   return (
     <div className="w-full max-w-full min-w-0 space-y-4 overflow-x-hidden md:max-w-none md:mx-0">
       <header className="sticky top-0 z-10 flex items-center bg-forest-950/85 py-3 backdrop-blur">
@@ -471,6 +591,15 @@ export function FeedPage() {
               />
             ))}
           </div>
+        ) : referenceSightings.length > 0 ? (
+          <>
+            <p className="text-xs text-slate-400">Fichas de referencia de biodiversidad de Guaviare</p>
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {referenceSightings.map((sighting, index) => (
+                <ReferenceSightingCard key={sighting.id} sighting={sighting} index={index} />
+              ))}
+            </div>
+          </>
         ) : nearbyActive || searchTerm || activeCategory !== "Todas" ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-white/5 bg-forest-900/40 p-6 text-center">
             <Leaf size={48} className="mb-3 text-bio-500" aria-hidden="true" />
