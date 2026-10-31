@@ -1,4 +1,5 @@
 ﻿import { supabase } from "@/lib/supabase";
+import { getPublicSightingImageUrl } from "@/lib/imageUtils";
 import type { Sighting } from "@/types";
 
 /** Datos de perfil expuestos a la UI (sin la password nativa de supabase). */
@@ -107,7 +108,7 @@ export async function fetchSightingsByUser(userId: string): Promise<Sighting[]> 
     species: (row.scientific_name as string) ?? "",
     commonName: row.species_name as string,
     description: (row.description as string) ?? "",
-    imageUrl: (row.image_url as string) ?? "",
+    imageUrl: getPublicSightingImageUrl(row.image_url as string | null),
     location: (row.location as string) ?? "",
     category: (row.category as Sighting["category"]) ?? "Fauna",
     latitude: row.latitude as number,

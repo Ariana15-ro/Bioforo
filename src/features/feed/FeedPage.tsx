@@ -38,6 +38,23 @@ function timeAgo(iso: string): string {
   return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: es });
 }
 
+function isTestSighting(sighting: Sighting): boolean {
+  const text = `${sighting.commonName} ${sighting.description}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (/\b(personaje|pinterest|prueba|test|asdf|qwerty|lorem ipsum|texto aleatorio|random|aleatorio|aleatoria)\b/.test(text)) {
+    return true;
+  }
+
+  const words = text.match(/[a-z]+/g) ?? [];
+  const suspiciousWords = words.filter((word) => {
+    const vowels = word.match(/[aeiou]/g)?.length ?? 0;
+    return word.length >= 9 && vowels / word.length <= 0.2;
+  });
+  return suspiciousWords.length > 0 || words.filter((word) => word.length >= 6 && !/[aeiou]/.test(word)).length >= 3;
+}
+
 const SightingCard = memo(function SightingCard({
   sighting,
   liked,
@@ -346,7 +363,7 @@ export function FeedPage() {
       const matchesNearby = nearbyActive
         ? userLoc !== null && hasCoords && haversineKm(userLoc.lat, userLoc.lng, s.latitude!, s.longitude!) <= 50
         : true;
-      return hasCoords && matchesCategory && matchesSearch && matchesNearby;
+      return hasCoords && !isTestSighting(s) && matchesCategory && matchesSearch && matchesNearby;
     });
   }, [sightings, searchTerm, activeCategory, nearbyActive, userLoc]);
 

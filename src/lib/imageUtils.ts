@@ -1,8 +1,33 @@
+import { supabase } from "@/lib/supabase";
+
 export interface ProcessImageOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
   mimeType?: string;
+}
+
+export function getPublicSightingImageUrl(value: string | null | undefined): string {
+  const imageUrl = value?.trim();
+  if (!imageUrl || /^(blob:|data:)/i.test(imageUrl)) return "";
+
+  let path = imageUrl;
+  if (/^https?:\/\//i.test(imageUrl)) {
+    try {
+      const url = new URL(imageUrl);
+      const storagePath = "/storage/v1/object/public/sightings/";
+      const pathStart = url.pathname.indexOf(storagePath);
+      if (pathStart === -1) return "";
+      path = decodeURIComponent(url.pathname.slice(pathStart + storagePath.length));
+    } catch {
+      return "";
+    }
+  } else {
+    path = imageUrl.replace(/^\/+/, "");
+  }
+
+  if (!path) return "";
+  return supabase.storage.from("sightings").getPublicUrl(path).data.publicUrl;
 }
 
 export async function processImage(

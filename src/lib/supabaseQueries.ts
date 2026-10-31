@@ -1,4 +1,5 @@
 ﻿import { supabase } from "@/lib/supabase";
+import { getPublicSightingImageUrl } from "@/lib/imageUtils";
 import { buildIlikeFilter } from "@/lib/searchUtils";
 import type { Comment, Sighting, SightingRow, User } from "@/types";
 
@@ -17,7 +18,7 @@ export function mapSightingRow(r: SightingRow, profilesMap?: Record<string, Prof
     species: r.scientific_name ?? "",
     commonName: r.species_name,
     description: r.description ?? "",
-    imageUrl: r.image_url ?? "",
+    imageUrl: getPublicSightingImageUrl(r.image_url),
     location: r.location ?? "",
     category: (r.category as Sighting["category"]) ?? "Fauna",
     latitude: Number(r.latitude) || 0,
@@ -102,6 +103,9 @@ export async function createSighting(input: {
     throw new Error("Debes iniciar sesión para publicar un avistamiento.");
   }
 
+  const imageUrl = getPublicSightingImageUrl(input.imageUrl);
+  if (!imageUrl) throw new Error("La imagen debe estar subida a Supabase Storage.");
+
   const { data, error } = await supabase
     .from("sightings")
     .insert({
@@ -111,7 +115,7 @@ export async function createSighting(input: {
       category: input.category,
       description: input.description,
       location: input.location,
-      image_url: input.imageUrl,
+      image_url: imageUrl,
       latitude: input.latitude,
       longitude: input.longitude,
     })
@@ -147,7 +151,7 @@ export async function createSighting(input: {
     species: row.scientific_name ?? "",
     commonName: row.species_name,
     description: row.description ?? "",
-    imageUrl: row.image_url ?? "",
+    imageUrl: getPublicSightingImageUrl(row.image_url),
     location: row.location ?? "",
     category: (row.category as Sighting["category"]) ?? "Fauna",
     latitude: row.latitude ?? 0,
@@ -366,7 +370,7 @@ export async function fetchSightingById(id: string): Promise<Sighting | null> {
     species: row.scientific_name ?? "",
     commonName: row.species_name,
     description: row.description ?? "",
-    imageUrl: row.image_url ?? "",
+    imageUrl: getPublicSightingImageUrl(row.image_url),
     location: row.location ?? "",
     category: (row.category as Sighting["category"]) ?? "Fauna",
     latitude: row.latitude ?? 0,
@@ -426,7 +430,7 @@ export async function updateSighting(id: string, input: {
     species: row.scientific_name ?? "",
     commonName: row.species_name,
     description: row.description ?? "",
-    imageUrl: row.image_url ?? "",
+    imageUrl: getPublicSightingImageUrl(row.image_url),
     location: row.location ?? "",
     category: (row.category as Sighting["category"]) ?? "Fauna",
     latitude: row.latitude ?? 0,

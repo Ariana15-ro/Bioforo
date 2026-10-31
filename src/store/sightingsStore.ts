@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { fetchSightings, type FetchSightingsOptions } from "@/lib/supabaseQueries";
 import { getCachedFeed, setCachedFeed, type CachedSighting } from "@/lib/offlineCache";
+import { getPublicSightingImageUrl } from "@/lib/imageUtils";
 import type { Sighting } from "@/types";
 
 interface SightingsState {
@@ -35,9 +36,13 @@ export const useSightingsStore = create<SightingsState>((set, get) => ({
   hasMore: true,
   selectedId: null,
   setSightings: (sightings) => {
-    set({ sightings, hasMore: sightings.length >= PAGE_SIZE });
+    const normalizedSightings = sightings.map((s) => ({
+      ...s,
+      imageUrl: getPublicSightingImageUrl(s.imageUrl),
+    }));
+    set({ sightings: normalizedSightings, hasMore: sightings.length >= PAGE_SIZE });
     try {
-      const cache: CachedSighting[] = sightings.map((s) => ({
+      const cache: CachedSighting[] = normalizedSightings.map((s) => ({
         id: s.id,
         commonName: s.commonName,
         species: s.species || undefined,
@@ -61,10 +66,14 @@ export const useSightingsStore = create<SightingsState>((set, get) => ({
       // ignore cache errors
     }
   },
-  prependSighting: (s) => set((state) => ({ sightings: [s, ...state.sightings] })),
+  prependSighting: (s) => set((state) => ({
+    sightings: [{ ...s, imageUrl: getPublicSightingImageUrl(s.imageUrl) }, ...state.sightings],
+  })),
   updateSighting: (s) =>
     set((state) => ({
-      sightings: state.sightings.map((x) => (x.id === s.id ? s : x)),
+      sightings: state.sightings.map((x) =>
+        x.id === s.id ? { ...s, imageUrl: getPublicSightingImageUrl(s.imageUrl) } : x,
+      ),
     })),
   openPost: (id) => set({ selectedId: id }),
   closePost: () => set({ selectedId: null }),
@@ -95,7 +104,10 @@ export const useSightingsStore = create<SightingsState>((set, get) => ({
   reset: () => set({ sightings: [], hasMore: true, loading: false, selectedId: null }),
   loadOfflineCache: () => {
     try {
-      const cached = getCachedFeed();
+      const cached = getCachedFeed().map((s) => ({
+        ...s,
+        imageUrl: getPublicSightingImageUrl(s.imageUrl),
+      }));
       if (cached.length > 0 && get().sightings.length === 0) {
         set({ sightings: cached as unknown as Sighting[], hasMore: false });
       }

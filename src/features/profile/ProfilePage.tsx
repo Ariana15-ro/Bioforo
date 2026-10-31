@@ -50,6 +50,11 @@ export function ProfilePage() {
   const location = profile?.location ?? "Colombia";
   const email = profile?.email ?? user?.email ?? rawUser?.email ?? "";
 
+  useEffect(() => {
+    if (!avatarPreview?.startsWith("blob:")) return;
+    return () => URL.revokeObjectURL(avatarPreview);
+  }, [avatarPreview]);
+
   const badges = computeBadges(mySightings);
 
   const loadProfile = useCallback(async () => {
